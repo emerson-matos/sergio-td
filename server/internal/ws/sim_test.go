@@ -106,3 +106,50 @@ func TestSellTowerRemovesTowerAndReturnsRefund(t *testing.T) {
 		t.Fatalf("expected no towers after sell, got %d", got)
 	}
 }
+
+func TestTowerCombatKillsEnemyAndRewardsPlayer(t *testing.T) {
+	sim := NewSimulation()
+
+	_, err := sim.PlaceTower("p_1", "dart", 0, 3)
+	if err != nil {
+		t.Fatalf("place failed: %v", err)
+	}
+
+	for range 14 {
+		sim.Step()
+	}
+
+	if got := len(sim.Enemies()); got != 0 {
+		t.Fatalf("expected enemy to be killed by tower, got %d alive", got)
+	}
+
+	player := findPlayer(t, sim.Players(), "p_1")
+	if player.Score < 1 {
+		t.Fatalf("expected score to increase after kill, got %d", player.Score)
+	}
+}
+
+func TestEnemyLeakReducesLives(t *testing.T) {
+	sim := NewSimulation()
+	initialLives := findPlayer(t, sim.Players(), "p_1").Lives
+
+	for range 60 {
+		sim.Step()
+	}
+
+	player := findPlayer(t, sim.Players(), "p_1")
+	if player.Lives >= initialLives {
+		t.Fatalf("expected lives to be reduced by leaked enemies, initial=%d current=%d", initialLives, player.Lives)
+	}
+}
+
+func findPlayer(t *testing.T, players []PlayerState, id string) PlayerState {
+	t.Helper()
+	for _, player := range players {
+		if player.ID == id {
+			return player
+		}
+	}
+	t.Fatalf("player %s not found", id)
+	return PlayerState{}
+}

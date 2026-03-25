@@ -34,6 +34,7 @@ Semana 3 concluída no escopo do MVP inicial de comandos:
 
 - `client/` conecta por WebSocket, envia `HELLO` + `START_MATCH` e exercita `COMMAND_PLACE_TOWER`, `COMMAND_UPGRADE_TOWER` e `COMMAND_SELL_TOWER`.
 - `server/` em Go valida comandos de gameplay server-side (gold, dono da torre, nível máximo e posição), responde `ACK_COMMAND`/`ERROR_COMMAND_REJECTED` e inclui `towers`/`players` no `SNAPSHOT_STATE`.
+- combate autoritativo inicial ativo no servidor: torres dão dano, inimigos podem morrer (com recompensa de gold/score) e vazamentos reduzem vidas do jogador.
 
 ## Rodando o projeto
 

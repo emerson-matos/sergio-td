@@ -5,6 +5,7 @@ import "fmt"
 type Enemy struct {
 	ID string  `json:"id"`
 	X  float64 `json:"x"`
+	Y  float64 `json:"y"`
 	HP int     `json:"hp"`
 }
 
@@ -20,8 +21,16 @@ type Tower struct {
 }
 
 type PlayerState struct {
-	ID   string `json:"id"`
-	Gold int    `json:"gold"`
+	ID    string `json:"id"`
+	Gold  int    `json:"gold"`
+	Lives int    `json:"lives"`
+	Score int    `json:"score"`
+}
+
+type playerRuntime struct {
+	Gold  int
+	Lives int
+	Score int
 }
 
 type Simulation struct {
@@ -31,7 +40,7 @@ type Simulation struct {
 	spawnEveryTick int
 	enemies        []Enemy
 	towers         []Tower
-	playerGold     map[string]int
+	players        map[string]*playerRuntime
 }
 
 func NewSimulation() *Simulation {
@@ -39,8 +48,12 @@ func NewSimulation() *Simulation {
 		spawnEveryTick: 10,
 		enemies:        make([]Enemy, 0),
 		towers:         make([]Tower, 0),
-		playerGold: map[string]int{
-			"p_1": 650,
+		players: map[string]*playerRuntime{
+			"p_1": {
+				Gold:  650,
+				Lives: 20,
+				Score: 0,
+			},
 		},
 	}
 }
@@ -53,16 +66,21 @@ func (s *Simulation) Step() {
 		s.enemies = append(s.enemies, Enemy{
 			ID: fmt.Sprintf("e_%d", s.nextEnemyID),
 			X:  0,
+			Y:  3,
 			HP: 100,
 		})
 	}
 
+	s.applyTowerCombat()
+
 	alive := make([]Enemy, 0, len(s.enemies))
 	for _, enemy := range s.enemies {
 		enemy.X += 0.5
-		if enemy.X <= 20 {
-			alive = append(alive, enemy)
+		if enemy.X > 20 {
+			s.adjustLives("p_1", -1)
+			continue
 		}
+		alive = append(alive, enemy)
 	}
 	s.enemies = alive
 }
@@ -84,11 +102,13 @@ func (s *Simulation) Towers() []Tower {
 }
 
 func (s *Simulation) Players() []PlayerState {
-	players := make([]PlayerState, 0, len(s.playerGold))
-	for id, gold := range s.playerGold {
+	players := make([]PlayerState, 0, len(s.players))
+	for id, player := range s.players {
 		players = append(players, PlayerState{
-			ID:   id,
-			Gold: gold,
+			ID:    id,
+			Gold:  player.Gold,
+			Lives: player.Lives,
+			Score: player.Score,
 		})
 	}
 	return players
@@ -110,11 +130,8 @@ func (s *Simulation) PlaceTower(playerID, towerType string, x, y float64) (Tower
 		return Tower{}, fmt.Errorf("unsupported towerType")
 	}
 
-	currentGold, ok := s.playerGold[playerID]
-	if !ok {
-		currentGold = 650
-	}
-	if currentGold < cost {
+	player := s.ensurePlayer(playerID)
+	if player.Gold < cost {
 		return Tower{}, fmt.Errorf("insufficient gold")
 	}
 
@@ -138,7 +155,7 @@ func (s *Simulation) PlaceTower(playerID, towerType string, x, y float64) (Tower
 		BaseCost: cost,
 	}
 	s.towers = append(s.towers, tower)
-	s.playerGold[playerID] = currentGold - cost
+	player.Gold -= cost
 
 	return tower, nil
 }
@@ -177,14 +194,14 @@ func (s *Simulation) UpgradeTower(playerID, towerID string) (Tower, error) {
 	}
 
 	upgradeCost := tower.BaseCost * tower.Level
-	currentGold := s.playerGold[playerID]
-	if currentGold < upgradeCost {
+	player := s.ensurePlayer(playerID)
+	if player.Gold < upgradeCost {
 		return Tower{}, fmt.Errorf("insufficient gold")
 	}
 
 	tower.Level++
 	s.towers[idx] = tower
-	s.playerGold[playerID] = currentGold - upgradeCost
+	player.Gold -= upgradeCost
 
 	return tower, nil
 }
@@ -211,8 +228,70 @@ func (s *Simulation) SellTower(playerID, towerID string) (int, error) {
 	}
 
 	refund := (tower.BaseCost / 2) + ((tower.Level - 1) * tower.BaseCost / 2)
-	s.playerGold[playerID] = s.playerGold[playerID] + refund
+	player := s.ensurePlayer(playerID)
+	player.Gold += refund
 
 	s.towers = append(s.towers[:idx], s.towers[idx+1:]...)
 	return refund, nil
+}
+
+func (s *Simulation) applyTowerCombat() {
+	if len(s.towers) == 0 || len(s.enemies) == 0 {
+		return
+	}
+
+	alive := make([]Enemy, 0, len(s.enemies))
+	for _, enemy := range s.enemies {
+		enemyAlive := true
+		for _, tower := range s.towers {
+			if inRange(tower, enemy) {
+				damage := 25 * tower.Level
+				enemy.HP -= damage
+				if enemy.HP <= 0 {
+					s.onEnemyKilled(tower.OwnerID)
+					enemyAlive = false
+					break
+				}
+			}
+		}
+		if enemyAlive {
+			alive = append(alive, enemy)
+		}
+	}
+	s.enemies = alive
+}
+
+func (s *Simulation) onEnemyKilled(playerID string) {
+	player := s.ensurePlayer(playerID)
+	player.Gold += 10
+	player.Score++
+}
+
+func (s *Simulation) adjustLives(playerID string, delta int) {
+	player := s.ensurePlayer(playerID)
+	player.Lives += delta
+	if player.Lives < 0 {
+		player.Lives = 0
+	}
+}
+
+func (s *Simulation) ensurePlayer(playerID string) *playerRuntime {
+	player, ok := s.players[playerID]
+	if ok {
+		return player
+	}
+
+	player = &playerRuntime{
+		Gold:  650,
+		Lives: 20,
+		Score: 0,
+	}
+	s.players[playerID] = player
+	return player
+}
+
+func inRange(tower Tower, enemy Enemy) bool {
+	dx := tower.X - enemy.X
+	dy := tower.Y - enemy.Y
+	return (dx*dx)+(dy*dy) <= 16
 }

@@ -20,12 +20,15 @@ var upgrader = websocket.Upgrader{
 type envelope struct {
 	Version int                    `json:"v"`
 	Type    string                 `json:"type"`
-	TS      int64                  `json:"ts"`
+	TS      float64                `json:"ts"`
 	MatchID string                 `json:"matchId,omitempty"`
 	Payload map[string]interface{} `json:"payload,omitempty"`
 }
 
 var sharedMatch = newMatchState("m_1")
+var lobbyServer = NewLobbyServer()
+var currentRoomID = ""
+var currentPlayerID = ""
 
 func Health(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
@@ -40,19 +43,20 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 	defer func() {
+		if currentRoomID != "" && currentPlayerID != "" {
+			lobbyServer.LeaveRoom(currentRoomID, currentPlayerID)
+		}
 		playerID, connected := sharedMatch.unregisterConnection(conn)
 		if playerID != "" {
 			broadcastLobbyState(connected)
 		}
 	}()
 
-	if err := writeMessage(conn, "HELLO_ACK", map[string]any{
-		"message": "week7-multiplayer-ready",
-		"matchId": sharedMatch.matchID,
-	}); err != nil {
-		log.Printf("write ack failed: %v", err)
-		return
-	}
+	// Send initial lobby state
+	rooms := lobbyServer.GetRooms()
+	_ = writeMessage(conn, "LOBBY_LIST", map[string]any{
+		"rooms": rooms,
+	})
 
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
@@ -81,11 +85,7 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 			case "HELLO":
 				playerID := asString(msg.Payload["playerId"])
 				if playerID == "" {
-					_ = writeMessage(conn, "ACK_HELLO", map[string]any{
-						"accepted": false,
-						"reason":   "missing playerId",
-					})
-					continue
+					playerID = fmt.Sprintf("p_%d", time.Now().UnixMilli()%10000)
 				}
 				reconnected, connected := sharedMatch.registerConnection(playerID, conn)
 				_ = writeMessage(conn, "ACK_HELLO", map[string]any{
@@ -96,19 +96,37 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 					"connectedCount": connected,
 				})
 				broadcastLobbyState(connected)
-			case "START_MATCH":
-				if !sharedMatch.tryStartMatch(2) {
-					_ = writeMessage(conn, "ERROR_COMMAND_REJECTED", map[string]any{
-						"reason": "need at least 2 connected players to start",
+
+			case "START_WAVE":
+				sharedMatch.withSimulation(func(sim *Simulation) {
+					if sim.StartWave() {
+						broadcastAll("EVENT_WAVE_STARTED", map[string]any{
+							"waveNumber": sim.WaveNumber(),
+						})
+					} else {
+						log.Printf("[WAVE] Não foi possível iniciar wave: waveNumber=%d, totalWaves=%d", sim.WaveNumber(), len(sim.Waves()))
+					}
+				})
+
+			case "PLAYER_READY":
+				playerID := sharedMatch.connectionPlayer(conn)
+				ready := sharedMatch.setPlayerReady(playerID, true)
+				broadcastLobbyState(sharedMatch.getConnectedCount())
+
+				// Auto-start when all players ready
+				if ready && sharedMatch.allPlayersReady() && !sharedMatch.isSimulationRunning() {
+					sharedMatch.withSimulation(func(sim *Simulation) {
+						sim.StartWave()
+						sharedMatch.setSimulationRunning(true)
 					})
-					continue
+					broadcastAll("EVENT_MATCH_STARTED", map[string]any{
+						"matchId": sharedMatch.matchID,
+					})
+					broadcastAll("EVENT_WAVE_STARTED", map[string]any{
+						"waveNumber": 1,
+					})
 				}
-				broadcastAll("EVENT_MATCH_STARTED", map[string]any{
-					"matchId": sharedMatch.matchID,
-				})
-				broadcastAll("EVENT_WAVE_STARTED", map[string]any{
-					"waveNumber": 1,
-				})
+
 			case "COMMAND_PLACE_TOWER":
 				playerID := sharedMatch.connectionPlayer(conn)
 				towerType := asString(msg.Payload["towerType"])
@@ -125,10 +143,6 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 						"accepted":  false,
 						"reason":    "invalid coordinates",
 					})
-					_ = writeMessage(conn, "ERROR_COMMAND_REJECTED", map[string]any{
-						"commandId": commandID,
-						"reason":    "invalid coordinates",
-					})
 					continue
 				}
 
@@ -137,16 +151,11 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 				sharedMatch.withSimulation(func(sim *Simulation) {
 					tower, placeErr = sim.PlaceTower(playerID, towerType, x, y)
 				})
-				err := placeErr
-				if err != nil {
+				if placeErr != nil {
 					_ = writeMessage(conn, "ACK_COMMAND", map[string]any{
 						"commandId": commandID,
 						"accepted":  false,
-						"reason":    err.Error(),
-					})
-					_ = writeMessage(conn, "ERROR_COMMAND_REJECTED", map[string]any{
-						"commandId": commandID,
-						"reason":    err.Error(),
+						"reason":    placeErr.Error(),
 					})
 					continue
 				}
@@ -156,6 +165,7 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 					"accepted":  true,
 					"towerId":   tower.ID,
 				})
+
 			case "COMMAND_UPGRADE_TOWER":
 				playerID := sharedMatch.connectionPlayer(conn)
 				towerID := asString(msg.Payload["towerId"])
@@ -169,16 +179,11 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 				sharedMatch.withSimulation(func(sim *Simulation) {
 					tower, upgradeErr = sim.UpgradeTower(playerID, towerID)
 				})
-				err := upgradeErr
-				if err != nil {
+				if upgradeErr != nil {
 					_ = writeMessage(conn, "ACK_COMMAND", map[string]any{
 						"commandId": commandID,
 						"accepted":  false,
-						"reason":    err.Error(),
-					})
-					_ = writeMessage(conn, "ERROR_COMMAND_REJECTED", map[string]any{
-						"commandId": commandID,
-						"reason":    err.Error(),
+						"reason":    upgradeErr.Error(),
 					})
 					continue
 				}
@@ -189,6 +194,36 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 					"towerId":   tower.ID,
 					"level":     tower.Level,
 				})
+
+			case "COMMAND_SET_TARGET":
+				playerID := sharedMatch.connectionPlayer(conn)
+				towerID := asString(msg.Payload["towerId"])
+				targetMode := asString(msg.Payload["targetMode"])
+				commandID := asString(msg.Payload["commandId"])
+				if commandID == "" {
+					commandID = fmt.Sprintf("cmd_%d", time.Now().UnixMilli())
+				}
+
+				var setErr error
+				sharedMatch.withSimulation(func(sim *Simulation) {
+					setErr = sim.SetTargetMode(playerID, towerID, targetMode)
+				})
+				if setErr != nil {
+					_ = writeMessage(conn, "ACK_COMMAND", map[string]any{
+						"commandId": commandID,
+						"accepted":  false,
+						"reason":    setErr.Error(),
+					})
+					continue
+				}
+
+				_ = writeMessage(conn, "ACK_COMMAND", map[string]any{
+					"commandId":  commandID,
+					"accepted":   true,
+					"towerId":    towerID,
+					"targetMode": targetMode,
+				})
+
 			case "COMMAND_SELL_TOWER":
 				playerID := sharedMatch.connectionPlayer(conn)
 				towerID := asString(msg.Payload["towerId"])
@@ -202,16 +237,11 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 				sharedMatch.withSimulation(func(sim *Simulation) {
 					refund, sellErr = sim.SellTower(playerID, towerID)
 				})
-				err := sellErr
-				if err != nil {
+				if sellErr != nil {
 					_ = writeMessage(conn, "ACK_COMMAND", map[string]any{
 						"commandId": commandID,
 						"accepted":  false,
-						"reason":    err.Error(),
-					})
-					_ = writeMessage(conn, "ERROR_COMMAND_REJECTED", map[string]any{
-						"commandId": commandID,
-						"reason":    err.Error(),
+						"reason":    sellErr.Error(),
 					})
 					continue
 				}
@@ -222,6 +252,17 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 					"towerId":   towerID,
 					"refund":    refund,
 				})
+
+			case "GET_GAME_DATA":
+				sharedMatch.withSimulation(func(sim *Simulation) {
+					_ = writeMessage(conn, "GAME_DATA", map[string]any{
+						"waypoints":  GetWaypoints(),
+						"towerTypes": GetTowerTypes(),
+						"enemyTypes": GetEnemyTypes(),
+						"waveNumber": sim.WaveNumber(),
+					})
+				})
+
 			default:
 				_ = writeMessage(conn, "ECHO", map[string]any{"raw": string(raw)})
 			}
@@ -231,22 +272,44 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 			return
 
 		case <-ticker.C:
-			if !sharedMatch.isRunning() {
-				continue
-			}
 			sharedMatch.withSimulation(func(sim *Simulation) {
-				sim.Step()
+				if !sharedMatch.isSimulationRunning() && sharedMatch.getConnectedCount() >= 1 {
+					sharedMatch.setSimulationRunning(true)
+					broadcastAll("EVENT_MATCH_STARTED", map[string]any{})
+					broadcastAll("EVENT_WAVE_STARTED", map[string]any{
+						"waveNumber": 1,
+					})
+				}
+
+				if sharedMatch.isSimulationRunning() {
+					if sim.Tick(); err != nil {
+						log.Printf("tick error: %v", err)
+					}
+				}
+
+				tick, players, towers, enemies, waveNum := sharedMatch.snapshot()
+				broadcastAll("SNAPSHOT_STATE", map[string]any{
+					"tick":       tick,
+					"waveNumber": waveNum,
+					"players":    players,
+					"towers":     towers,
+					"enemies":    enemies,
+				})
+
+				if sim.GameOver() {
+					broadcastAll("EVENT_MATCH_ENDED", map[string]any{
+						"result":     "defeat",
+						"waveNumber": sim.WaveNumber(),
+						"victory":    false,
+					})
+				} else if sim.Victory() {
+					broadcastAll("EVENT_MATCH_ENDED", map[string]any{
+						"result":     "victory",
+						"waveNumber": sim.WaveNumber(),
+						"victory":    true,
+					})
+				}
 			})
-			tick, players, towers, enemies := sharedMatch.snapshot()
-			if err := writeMessage(conn, "SNAPSHOT_STATE", map[string]any{
-				"tick":    tick,
-				"players": players,
-				"towers":  towers,
-				"enemies": enemies,
-			}); err != nil {
-				log.Printf("snapshot failed: %v", err)
-				return
-			}
 		}
 	}
 }
@@ -255,7 +318,7 @@ func broadcastLobbyState(connectedPlayers int) {
 	broadcastAll("LOBBY_STATE", map[string]any{
 		"matchId":        sharedMatch.matchID,
 		"connectedCount": connectedPlayers,
-		"minToStart":     2,
+		"minToStart":     1,
 		"maxPlayers":     4,
 	})
 }

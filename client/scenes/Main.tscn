@@ -1,20 +1,92 @@
-[gd_scene load_steps=2 format=3 uid="uid://main"]
+[gd_scene format=3 uid="uid://main"]
 
-[ext_resource type="Script" path="res://scripts/Main.gd" id="1_main"]
+[ext_resource type="Script" uid="uid://cr68ap2g47fmo" path="res://scripts/Main.gd" id="1_main"]
 
-[node name="Main" type="Node2D"]
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_1"]
+bg_color = Color(0.1, 0.1, 0.15, 0.9)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.3, 0.3, 0.4, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[node name="Main" type="Node2D" unique_id=1322576515]
 script = ExtResource("1_main")
 
-[node name="StatusLabel" type="Label" parent="."]
+[node name="GameCanvas" type="Node2D" parent="." unique_id=439240518]
+
+[node name="UI" type="CanvasLayer" parent="." unique_id=1742634457]
+
+[node name="StatusLabel" type="Label" parent="UI" unique_id=1578147748]
+anchors_preset = 0
 offset_left = 24.0
 offset_top = 24.0
-offset_right = 560.0
+offset_right = 600.0
 offset_bottom = 74.0
-text = "Semana 2: iniciando conexão..."
+text = "Conectando ao servidor..."
 
-[node name="SimulationLabel" type="Label" parent="."]
-offset_left = 24.0
-offset_top = 72.0
-offset_right = 560.0
-offset_bottom = 122.0
-text = "Tick: - | Inimigos ativos: -"
+[node name="HUD" type="PanelContainer" parent="UI" unique_id=899219090]
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 32.0
+offset_top = -120.0
+offset_right = 358.0
+offset_bottom = -20.0
+grow_vertical = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_1")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="UI/HUD" unique_id=65827893]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="GoldLabel" type="Label" parent="UI/HUD/VBoxContainer" unique_id=1511225795]
+layout_mode = 2
+text = "Ouro: --"
+
+[node name="LivesLabel" type="Label" parent="UI/HUD/VBoxContainer" unique_id=1800178790]
+layout_mode = 2
+text = "Vidas: --"
+
+[node name="WaveLabel" type="Label" parent="UI/HUD/VBoxContainer" unique_id=680630900]
+layout_mode = 2
+text = "Wave: --"
+
+[node name="ScoreLabel" type="Label" parent="UI/HUD/VBoxContainer" unique_id=1617864216]
+layout_mode = 2
+text = "Score: --"
+
+[node name="StartWaveButton" type="Button" parent="UI/HUD" unique_id=877095382]
+layout_mode = 2
+disabled = true
+text = "Iniciar Wave"
+
+[node name="TowerPanel" type="PanelContainer" parent="UI" unique_id=1526405528]
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -425.0
+offset_top = -110.0
+offset_right = 20.0
+offset_bottom = -20.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_1")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="UI/TowerPanel" unique_id=973464180]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="TitleLabel" type="Label" parent="UI/TowerPanel/VBoxContainer" unique_id=1418450762]
+layout_mode = 2
+text = "Selecione uma Torre:"
+
+[node name="ButtonsContainer" type="HBoxContainer" parent="UI/TowerPanel/VBoxContainer" unique_id=1511423849]
+layout_mode = 2
+theme_override_constants/separation = 8

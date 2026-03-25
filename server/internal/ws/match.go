@@ -10,6 +10,7 @@ import (
 type playerSession struct {
 	PlayerID  string
 	Connected bool
+	Ready     bool
 	LastSeen  time.Time
 }
 
@@ -105,14 +106,62 @@ func (m *matchState) withSimulation(fn func(*Simulation)) {
 	fn(m.sim)
 }
 
-func (m *matchState) snapshot() (tick int, players []PlayerState, towers []Tower, enemies []Enemy) {
+func (m *matchState) snapshot() (tick int, players []PlayerState, towers []Tower, enemies []Enemy, waveNumber int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.sim.Tick(), m.sim.Players(), m.sim.Towers(), m.sim.Enemies()
+	return m.sim.Tick(), m.sim.Players(), m.sim.Towers(), m.sim.Enemies(), m.sim.WaveNumber()
 }
 
 func (m *matchState) connectionPlayer(conn *websocket.Conn) string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.conns[conn]
+}
+
+func (m *matchState) setPlayerReady(playerID string, ready bool) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if session, ok := m.players[playerID]; ok {
+		session.Ready = ready
+		return true
+	}
+	return false
+}
+
+func (m *matchState) getConnectedCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.connectedPlayersLocked()
+}
+
+func (m *matchState) allPlayersReady() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	
+	connectedCount := 0
+	readyCount := 0
+	
+	for _, session := range m.players {
+		if session.Connected {
+			connectedCount++
+			if session.Ready {
+				readyCount++
+			}
+		}
+	}
+	
+	// Need at least 1 player and all must be ready
+	return connectedCount > 0 && connectedCount == readyCount
+}
+
+func (m *matchState) isSimulationRunning() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.running
+}
+
+func (m *matchState) setSimulationRunning(running bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.running = running
 }

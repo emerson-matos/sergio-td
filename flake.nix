@@ -15,7 +15,12 @@
     flake-utils.lib.eachDefaultSystem (
       system:
       let
-        pkgs = import nixpkgs { inherit system; };
+        pkgs = import nixpkgs {
+          inherit system;
+          config = {
+            allowUnfree = true;
+          };
+        };
 
         runServer = pkgs.writeShellApplication {
           name = "sergio-td-server";
@@ -79,6 +84,8 @@
             godot_4
             websocat
             jq
+            claude-code
+            opencode
           ];
 
           shellHook = ''

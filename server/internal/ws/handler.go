@@ -1,6 +1,7 @@
 package ws
 
 import (
+	"bytes"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -55,6 +56,11 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case raw := <-rawMessages:
+			raw = bytes.TrimSpace(raw)
+			if len(raw) == 0 {
+				continue
+			}
+
 			var msg envelope
 			if err := json.Unmarshal(raw, &msg); err != nil {
 				_ = writeMessage(conn, "ERROR_BAD_MESSAGE", map[string]any{
@@ -97,10 +103,13 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 
 func readLoop(conn *websocket.Conn, messages chan<- []byte, readErr chan<- error) {
 	for {
-		_, payload, err := conn.ReadMessage()
+		msgType, payload, err := conn.ReadMessage()
 		if err != nil {
 			readErr <- err
 			return
+		}
+		if msgType != websocket.TextMessage && msgType != websocket.BinaryMessage {
+			continue
 		}
 		messages <- payload
 	}

@@ -1,12 +1,14 @@
 extends Node2D
 
+const NetworkClientScript = preload("res://scripts/NetworkClient.gd")
+
 @onready var status_label: Label = $StatusLabel
 @onready var simulation_label: Label = $SimulationLabel
 
-var network_client: NetworkClient
+var network_client: Node
 
 func _ready() -> void:
-	network_client = NetworkClient.new()
+	network_client = NetworkClientScript.new()
 	add_child(network_client)
 	network_client.connected.connect(_on_connected)
 	network_client.connection_failed.connect(_on_connection_failed)

@@ -10,6 +10,8 @@ var _is_connecting := false
 var _placed_tower_id := ""
 var _upgrade_sent := false
 var _sell_sent := false
+var _start_match_sent := false
+var _player_id := ""
 
 func connect_to_server(url: String) -> void:
 	var err := _socket.connect_to_url(url)
@@ -25,8 +27,8 @@ func _process(_delta: float) -> void:
 	if _is_connecting and state == WebSocketPeer.STATE_OPEN:
 		_is_connecting = false
 		emit_signal("connected")
+		_player_id = "p_%s" % OS.get_unique_id().replace("-", "_")
 		_send_hello()
-		_send_start_match()
 	elif _is_connecting and state == WebSocketPeer.STATE_CLOSED:
 		_is_connecting = false
 		emit_signal("connection_failed", "servidor fechou conexão")
@@ -50,10 +52,24 @@ func _handle_server_message(raw_packet: String) -> void:
 		emit_signal("snapshot_received", tick, enemies.size(), towers.size())
 	elif message_type == "EVENT_WAVE_STARTED":
 		_send_place_tower()
+	elif message_type == "LOBBY_STATE":
+		_handle_lobby_state(parsed.get("payload", {}))
 	elif message_type == "ACK_COMMAND":
 		_handle_ack_command(parsed.get("payload", {}))
 
 	print("[server] %s" % raw_packet)
+
+func _handle_lobby_state(payload_variant: Variant) -> void:
+	if not (payload_variant is Dictionary):
+		return
+	var payload: Dictionary = payload_variant
+	var connected_count := int(payload.get("connectedCount", 0))
+	var min_to_start := int(payload.get("minToStart", 2))
+	if _start_match_sent:
+		return
+	if connected_count >= min_to_start:
+		_start_match_sent = true
+		_send_start_match()
 
 func _handle_ack_command(payload_variant: Variant) -> void:
 	if not (payload_variant is Dictionary):
@@ -81,7 +97,8 @@ func _handle_ack_command(payload_variant: Variant) -> void:
 
 func _send_hello() -> void:
 	_send_message("HELLO", {
-		"client": "godot-week2"
+		"client": "godot-week7",
+		"playerId": _player_id
 	})
 
 func _send_start_match() -> void:
@@ -92,7 +109,6 @@ func _send_start_match() -> void:
 func _send_place_tower() -> void:
 	_send_message("COMMAND_PLACE_TOWER", {
 		"commandId": "cmd_place_1",
-		"playerId": "p_1",
 		"towerType": "dart",
 		"x": 6.0,
 		"y": 3.0
@@ -101,14 +117,12 @@ func _send_place_tower() -> void:
 func _send_upgrade_tower(tower_id: String) -> void:
 	_send_message("COMMAND_UPGRADE_TOWER", {
 		"commandId": "cmd_upgrade_1",
-		"playerId": "p_1",
 		"towerId": tower_id
 	})
 
 func _send_sell_tower(tower_id: String) -> void:
 	_send_message("COMMAND_SELL_TOWER", {
 		"commandId": "cmd_sell_1",
-		"playerId": "p_1",
 		"towerId": tower_id
 	})
 

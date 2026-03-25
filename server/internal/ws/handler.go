@@ -21,8 +21,11 @@ type envelope struct {
 	Version int                    `json:"v"`
 	Type    string                 `json:"type"`
 	TS      int64                  `json:"ts"`
+	MatchID string                 `json:"matchId,omitempty"`
 	Payload map[string]interface{} `json:"payload,omitempty"`
 }
+
+var sharedMatch = newMatchState("m_1")
 
 func Health(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
@@ -36,9 +39,16 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer conn.Close()
+	defer func() {
+		playerID, connected := sharedMatch.unregisterConnection(conn)
+		if playerID != "" {
+			broadcastLobbyState(connected)
+		}
+	}()
 
 	if err := writeMessage(conn, "HELLO_ACK", map[string]any{
-		"message": "week2-loop-ready",
+		"message": "week7-multiplayer-ready",
+		"matchId": sharedMatch.matchID,
 	}); err != nil {
 		log.Printf("write ack failed: %v", err)
 		return
@@ -50,9 +60,6 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	rawMessages := make(chan []byte)
 	readErr := make(chan error, 1)
 	go readLoop(conn, rawMessages, readErr)
-
-	sim := NewSimulation()
-	running := false
 
 	for {
 		select {
@@ -72,14 +79,38 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 
 			switch msg.Type {
 			case "HELLO":
-				_ = writeMessage(conn, "ACK_HELLO", map[string]any{"accepted": true})
+				playerID := asString(msg.Payload["playerId"])
+				if playerID == "" {
+					_ = writeMessage(conn, "ACK_HELLO", map[string]any{
+						"accepted": false,
+						"reason":   "missing playerId",
+					})
+					continue
+				}
+				reconnected, connected := sharedMatch.registerConnection(playerID, conn)
+				_ = writeMessage(conn, "ACK_HELLO", map[string]any{
+					"accepted":       true,
+					"playerId":       playerID,
+					"matchId":        sharedMatch.matchID,
+					"isReconnected":  reconnected,
+					"connectedCount": connected,
+				})
+				broadcastLobbyState(connected)
 			case "START_MATCH":
-				running = true
-				_ = writeMessage(conn, "EVENT_WAVE_STARTED", map[string]any{
+				if !sharedMatch.tryStartMatch(2) {
+					_ = writeMessage(conn, "ERROR_COMMAND_REJECTED", map[string]any{
+						"reason": "need at least 2 connected players to start",
+					})
+					continue
+				}
+				broadcastAll("EVENT_MATCH_STARTED", map[string]any{
+					"matchId": sharedMatch.matchID,
+				})
+				broadcastAll("EVENT_WAVE_STARTED", map[string]any{
 					"waveNumber": 1,
 				})
 			case "COMMAND_PLACE_TOWER":
-				playerID := asString(msg.Payload["playerId"])
+				playerID := sharedMatch.connectionPlayer(conn)
 				towerType := asString(msg.Payload["towerType"])
 				x, xOK := asFloat(msg.Payload["x"])
 				y, yOK := asFloat(msg.Payload["y"])
@@ -101,7 +132,12 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 
-				tower, err := sim.PlaceTower(playerID, towerType, x, y)
+				var tower Tower
+				var placeErr error
+				sharedMatch.withSimulation(func(sim *Simulation) {
+					tower, placeErr = sim.PlaceTower(playerID, towerType, x, y)
+				})
+				err := placeErr
 				if err != nil {
 					_ = writeMessage(conn, "ACK_COMMAND", map[string]any{
 						"commandId": commandID,
@@ -121,14 +157,19 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 					"towerId":   tower.ID,
 				})
 			case "COMMAND_UPGRADE_TOWER":
-				playerID := asString(msg.Payload["playerId"])
+				playerID := sharedMatch.connectionPlayer(conn)
 				towerID := asString(msg.Payload["towerId"])
 				commandID := asString(msg.Payload["commandId"])
 				if commandID == "" {
 					commandID = fmt.Sprintf("cmd_%d", time.Now().UnixMilli())
 				}
 
-				tower, err := sim.UpgradeTower(playerID, towerID)
+				var tower Tower
+				var upgradeErr error
+				sharedMatch.withSimulation(func(sim *Simulation) {
+					tower, upgradeErr = sim.UpgradeTower(playerID, towerID)
+				})
+				err := upgradeErr
 				if err != nil {
 					_ = writeMessage(conn, "ACK_COMMAND", map[string]any{
 						"commandId": commandID,
@@ -149,14 +190,19 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 					"level":     tower.Level,
 				})
 			case "COMMAND_SELL_TOWER":
-				playerID := asString(msg.Payload["playerId"])
+				playerID := sharedMatch.connectionPlayer(conn)
 				towerID := asString(msg.Payload["towerId"])
 				commandID := asString(msg.Payload["commandId"])
 				if commandID == "" {
 					commandID = fmt.Sprintf("cmd_%d", time.Now().UnixMilli())
 				}
 
-				refund, err := sim.SellTower(playerID, towerID)
+				var refund int
+				var sellErr error
+				sharedMatch.withSimulation(func(sim *Simulation) {
+					refund, sellErr = sim.SellTower(playerID, towerID)
+				})
+				err := sellErr
 				if err != nil {
 					_ = writeMessage(conn, "ACK_COMMAND", map[string]any{
 						"commandId": commandID,
@@ -185,19 +231,46 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 			return
 
 		case <-ticker.C:
-			if !running {
+			if !sharedMatch.isRunning() {
 				continue
 			}
-			sim.Step()
+			sharedMatch.withSimulation(func(sim *Simulation) {
+				sim.Step()
+			})
+			tick, players, towers, enemies := sharedMatch.snapshot()
 			if err := writeMessage(conn, "SNAPSHOT_STATE", map[string]any{
-				"tick":    sim.Tick(),
-				"players": sim.Players(),
-				"towers":  sim.Towers(),
-				"enemies": sim.Enemies(),
+				"tick":    tick,
+				"players": players,
+				"towers":  towers,
+				"enemies": enemies,
 			}); err != nil {
 				log.Printf("snapshot failed: %v", err)
 				return
 			}
+		}
+	}
+}
+
+func broadcastLobbyState(connectedPlayers int) {
+	broadcastAll("LOBBY_STATE", map[string]any{
+		"matchId":        sharedMatch.matchID,
+		"connectedCount": connectedPlayers,
+		"minToStart":     2,
+		"maxPlayers":     4,
+	})
+}
+
+func broadcastAll(msgType string, payload map[string]any) {
+	sharedMatch.mu.Lock()
+	conns := make([]*websocket.Conn, 0, len(sharedMatch.conns))
+	for conn := range sharedMatch.conns {
+		conns = append(conns, conn)
+	}
+	sharedMatch.mu.Unlock()
+
+	for _, conn := range conns {
+		if err := writeMessage(conn, msgType, payload); err != nil {
+			log.Printf("broadcast %s failed: %v", msgType, err)
 		}
 	}
 }

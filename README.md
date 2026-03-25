@@ -30,11 +30,13 @@ Construir um MVP multiplayer cooperativo/competitivo com:
 
 ## Status atual
 
-Semana 3 concluída no escopo do MVP inicial de comandos:
+Semana 7 (fora do calendário original) com MVP funcional e multiplayer básico:
 
-- `client/` conecta por WebSocket, envia `HELLO` + `START_MATCH` e exercita `COMMAND_PLACE_TOWER`, `COMMAND_UPGRADE_TOWER` e `COMMAND_SELL_TOWER`.
-- `server/` em Go valida comandos de gameplay server-side (gold, dono da torre, nível máximo e posição), responde `ACK_COMMAND`/`ERROR_COMMAND_REJECTED` e inclui `towers`/`players` no `SNAPSHOT_STATE`.
-- combate autoritativo inicial ativo no servidor: torres dão dano, inimigos podem morrer (com recompensa de gold/score) e vazamentos reduzem vidas do jogador.
+- `server/` usa estado de partida compartilhado (`matchId`), lobby simples e início sincronizado com mínimo de 2 jogadores conectados.
+- reconexão simples por `playerId` no `HELLO` (`isReconnected`), mantendo estado da simulação da partida ativa.
+- comandos de gameplay (`COMMAND_PLACE_TOWER`, `COMMAND_UPGRADE_TOWER`, `COMMAND_SELL_TOWER`) seguem autoritativos com `ACK_COMMAND`/`ERROR_COMMAND_REJECTED`.
+- snapshots incluem `players` (gold/lives/score), `towers`, `enemies` e tick.
+- combate autoritativo inicial: dano de torres, recompensa por kill e perda de vidas por vazamento.
 
 ## Rodando o projeto
 
@@ -94,7 +96,7 @@ Resposta esperada: `HTTP/1.1 200 OK` e body `ok`.
 
 ## Próximos passos
 
-1. Próxima milestone (Semana 4): multiplayer real.
-   - lobby mínimo (2–4 jogadores),
-   - start sincronizado,
-   - estado por jogador e reconexão simples.
+1. Hardening do MVP em produção:
+   - métricas e logs estruturados (latência, tick drift, rejeições),
+   - testes de carga com salas simultâneas,
+   - UI de lobby/partida/pós-partida no cliente.

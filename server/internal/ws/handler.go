@@ -103,15 +103,19 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 				broadcastLobbyState(connected)
 
 			case "START_WAVE":
+				var waveNum int
+				var started bool
 				sharedMatch.withSimulation(func(sim *Simulation) {
-					if sim.StartWave() {
-						broadcastAll("EVENT_WAVE_STARTED", map[string]any{
-							"waveNumber": sim.WaveNumber(),
-						})
+					started = sim.StartWave()
+					if started {
+						waveNum = sim.WaveNumber()
 					} else {
 						slog.Warn("cannot start wave", "waveNumber", sim.WaveNumber(), "totalWaves", len(sim.Waves()))
 					}
 				})
+				if started {
+					broadcastAll("EVENT_WAVE_STARTED", map[string]any{"waveNumber": waveNum})
+				}
 
 			case "PLAYER_READY":
 				playerID := sharedMatch.connectionPlayer(conn)
@@ -278,46 +282,46 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 
 		case <-ticker.C:
 			tickStart := time.Now()
-			sharedMatch.withSimulation(func(sim *Simulation) {
-				if !sharedMatch.isSimulationRunningLocked() && sharedMatch.getConnectedCountLocked() >= 1 {
-					sharedMatch.setSimulationRunningLocked(true)
-					sim.StartWave()
-					broadcastAll("EVENT_MATCH_STARTED", map[string]any{})
-					broadcastAll("EVENT_WAVE_STARTED", map[string]any{
-						"waveNumber": sim.WaveNumber(),
-					})
-				}
 
+			var snapPayload map[string]any
+			var matchEndPayload map[string]any
+
+			sharedMatch.withSimulation(func(sim *Simulation) {
 				if sharedMatch.isSimulationRunningLocked() {
 					sim.Step()
 				}
 
-				broadcastAll("SNAPSHOT_STATE", map[string]any{
+				snapPayload = map[string]any{
 					"tick":       sim.Tick(),
 					"waveNumber": sim.WaveNumber(),
 					"players":    sim.Players(),
 					"towers":     sim.Towers(),
 					"enemies":    sim.Enemies(),
-				})
+				}
 
 				if sim.Victory() {
-					broadcastAll("EVENT_MATCH_ENDED", map[string]any{
+					matchEndPayload = map[string]any{
 						"result":     "victory",
 						"waveNumber": sim.WaveNumber(),
 						"victory":    true,
 						"stats":      sim.MatchStats(),
-					})
+					}
 					sharedMatch.setSimulationRunningLocked(false)
 				} else if sim.GameOver() {
-					broadcastAll("EVENT_MATCH_ENDED", map[string]any{
+					matchEndPayload = map[string]any{
 						"result":     "defeat",
 						"waveNumber": sim.WaveNumber(),
 						"victory":    false,
 						"stats":      sim.MatchStats(),
-					})
+					}
 					sharedMatch.setSimulationRunningLocked(false)
 				}
 			})
+
+			broadcastAll("SNAPSHOT_STATE", snapPayload)
+			if matchEndPayload != nil {
+				broadcastAll("EVENT_MATCH_ENDED", matchEndPayload)
+			}
 			tickDuration := time.Since(tickStart)
 			RecordTick(tickDuration)
 			if tickDuration > 50*time.Millisecond {

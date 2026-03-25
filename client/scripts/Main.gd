@@ -26,6 +26,7 @@ var selected_tower_type: String = "raiz"
 var game_started: bool = false
 var hover_tile: Vector2 = Vector2(-1, -1)
 var hover_valid: bool = false
+var is_placing_tower: bool = false
 var waiting_for_ready := true
 
 const TOWER_COLORS = {
@@ -149,6 +150,7 @@ func _on_start_wave_pressed() -> void:
 
 func _on_tower_button_pressed(tower_type: String) -> void:
 	selected_tower_type = tower_type
+	is_placing_tower = true
 	status_label.text = "Torre selecionada: %s - Clique no mapa para posicionar" % tower_type
 
 func _input(event: InputEvent) -> void:
@@ -160,20 +162,25 @@ func _input(event: InputEvent) -> void:
 	
 	if event is InputEventMouseButton:
 		var mouse_event = event as InputEventMouseButton
-		if mouse_event.button_index == MOUSE_BUTTON_LEFT and mouse_event.pressed:
+		if mouse_event.button_index == MOUSE_BUTTON_RIGHT and mouse_event.pressed:
+			if is_placing_tower:
+				is_placing_tower = false
+				status_label.text = "Posicionamento cancelado"
+		elif mouse_event.button_index == MOUSE_BUTTON_LEFT and mouse_event.pressed and is_placing_tower:
 			var mouse_pos = get_viewport().get_mouse_position()
-			
+
 			# Convert viewport position to normalized game coordinates (0-1)
 			var viewport_size = get_viewport_rect().size
 			var norm_x = mouse_pos.x / viewport_size.x
 			var norm_y = mouse_pos.y / viewport_size.y
-			
+
 			# Map normalized coordinates to game world
 			var game_x = norm_x * MAP_WIDTH
 			var game_y = norm_y * MAP_HEIGHT
-			
+
 			if game_x >= 0 and game_x < MAP_WIDTH and game_y >= 0 and game_y < MAP_HEIGHT:
 				network_client.send_place_tower(selected_tower_type, game_x, game_y)
+				is_placing_tower = false
 
 func _process(_delta: float) -> void:
 	var mouse_pos = get_viewport().get_mouse_position()
@@ -218,7 +225,7 @@ func _draw() -> void:
 	draw_hover_preview(scale_x, scale_y)
 
 func draw_hover_preview(scale_x: float, scale_y: float) -> void:
-	if not hover_valid:
+	if not hover_valid or not is_placing_tower:
 		return
 	
 	var pos = Vector2(hover_tile.x * scale_x, hover_tile.y * scale_y)
@@ -378,7 +385,9 @@ func _create_enemy_node(enemy_type: String, hp: int, max_hp: int, scale_x: float
 
 func _update_enemy_hp(node: Node2D, hp: int, max_hp: int, scale_x: float, scale_y: float) -> void:
 	while node.get_child_count() > 1:
-		node.get_child(1).queue_free()
+		var child = node.get_child(node.get_child_count() - 1)
+		node.remove_child(child)
+		child.queue_free()
 	
 	if hp < max_hp:
 		var hp_bar_bg = ColorRect.new()

@@ -3,6 +3,7 @@ package ws
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -77,6 +78,48 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 				_ = writeMessage(conn, "EVENT_WAVE_STARTED", map[string]any{
 					"waveNumber": 1,
 				})
+			case "COMMAND_PLACE_TOWER":
+				playerID := asString(msg.Payload["playerId"])
+				towerType := asString(msg.Payload["towerType"])
+				x, xOK := asFloat(msg.Payload["x"])
+				y, yOK := asFloat(msg.Payload["y"])
+				commandID := asString(msg.Payload["commandId"])
+				if commandID == "" {
+					commandID = fmt.Sprintf("cmd_%d", time.Now().UnixMilli())
+				}
+
+				if !xOK || !yOK {
+					_ = writeMessage(conn, "ACK_COMMAND", map[string]any{
+						"commandId": commandID,
+						"accepted":  false,
+						"reason":    "invalid coordinates",
+					})
+					_ = writeMessage(conn, "ERROR_COMMAND_REJECTED", map[string]any{
+						"commandId": commandID,
+						"reason":    "invalid coordinates",
+					})
+					continue
+				}
+
+				tower, err := sim.PlaceTower(playerID, towerType, x, y)
+				if err != nil {
+					_ = writeMessage(conn, "ACK_COMMAND", map[string]any{
+						"commandId": commandID,
+						"accepted":  false,
+						"reason":    err.Error(),
+					})
+					_ = writeMessage(conn, "ERROR_COMMAND_REJECTED", map[string]any{
+						"commandId": commandID,
+						"reason":    err.Error(),
+					})
+					continue
+				}
+
+				_ = writeMessage(conn, "ACK_COMMAND", map[string]any{
+					"commandId": commandID,
+					"accepted":  true,
+					"towerId":   tower.ID,
+				})
 			default:
 				_ = writeMessage(conn, "ECHO", map[string]any{"raw": string(raw)})
 			}
@@ -92,6 +135,8 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 			sim.Step()
 			if err := writeMessage(conn, "SNAPSHOT_STATE", map[string]any{
 				"tick":    sim.Tick(),
+				"players": sim.Players(),
+				"towers":  sim.Towers(),
 				"enemies": sim.Enemies(),
 			}); err != nil {
 				log.Printf("snapshot failed: %v", err)
@@ -99,6 +144,19 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+}
+
+func asString(value any) string {
+	str, ok := value.(string)
+	if !ok {
+		return ""
+	}
+	return str
+}
+
+func asFloat(value any) (float64, bool) {
+	number, ok := value.(float64)
+	return number, ok
 }
 
 func readLoop(conn *websocket.Conn, messages chan<- []byte, readErr chan<- error) {

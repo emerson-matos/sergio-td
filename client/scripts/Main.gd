@@ -16,10 +16,10 @@ func _ready() -> void:
 	network_client.connect_to_server("ws://127.0.0.1:8080/ws")
 
 func _on_connected() -> void:
-	status_label.text = "Conectado ao servidor (Semana 2 loop OK)"
+	status_label.text = "Conectado ao servidor (Semana 3 comandos OK)"
 
 func _on_connection_failed(reason: String) -> void:
 	status_label.text = "Falha de conexão: %s" % reason
 
-func _on_snapshot_received(tick: int, enemies_count: int) -> void:
-	simulation_label.text = "Tick: %d | Inimigos ativos: %d" % [tick, enemies_count]
+func _on_snapshot_received(tick: int, enemies_count: int, towers_count: int) -> void:
+	simulation_label.text = "Tick: %d | Inimigos: %d | Torres: %d" % [tick, enemies_count, towers_count]

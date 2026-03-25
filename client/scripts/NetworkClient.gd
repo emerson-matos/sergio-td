@@ -3,7 +3,7 @@ extends Node
 
 signal connected
 signal connection_failed(reason: String)
-signal snapshot_received(tick: int, enemies_count: int)
+signal snapshot_received(tick: int, enemies_count: int, towers_count: int)
 
 var _socket := WebSocketPeer.new()
 var _is_connecting := false
@@ -43,7 +43,10 @@ func _handle_server_message(raw_packet: String) -> void:
 		var payload: Dictionary = parsed.get("payload", {})
 		var tick := int(payload.get("tick", 0))
 		var enemies: Array = payload.get("enemies", [])
-		emit_signal("snapshot_received", tick, enemies.size())
+		var towers: Array = payload.get("towers", [])
+		emit_signal("snapshot_received", tick, enemies.size(), towers.size())
+	elif message_type == "EVENT_WAVE_STARTED":
+		_send_place_tower()
 
 	print("[server] %s" % raw_packet)
 
@@ -55,6 +58,15 @@ func _send_hello() -> void:
 func _send_start_match() -> void:
 	_send_message("START_MATCH", {
 		"mode": "solo-dev"
+	})
+
+func _send_place_tower() -> void:
+	_send_message("COMMAND_PLACE_TOWER", {
+		"commandId": "cmd_place_1",
+		"playerId": "p_1",
+		"towerType": "dart",
+		"x": 6.0,
+		"y": 3.0
 	})
 
 func _send_message(message_type: String, payload: Dictionary) -> void:

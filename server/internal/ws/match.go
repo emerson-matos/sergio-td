@@ -1,0 +1,118 @@
+package ws
+
+import (
+	"sync"
+	"time"
+
+	"github.com/gorilla/websocket"
+)
+
+type playerSession struct {
+	PlayerID  string
+	Connected bool
+	LastSeen  time.Time
+}
+
+type matchState struct {
+	mu      sync.Mutex
+	matchID string
+	sim     *Simulation
+	running bool
+	players map[string]*playerSession
+	conns   map[*websocket.Conn]string
+}
+
+func newMatchState(matchID string) *matchState {
+	return &matchState{
+		matchID: matchID,
+		sim:     NewSimulation(),
+		players: make(map[string]*playerSession),
+		conns:   make(map[*websocket.Conn]string),
+	}
+}
+
+func (m *matchState) registerConnection(playerID string, conn *websocket.Conn) (reconnected bool, connectedPlayers int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	session, exists := m.players[playerID]
+	reconnected = exists && !session.Connected
+	if !exists {
+		session = &playerSession{
+			PlayerID: playerID,
+		}
+		m.players[playerID] = session
+	}
+	session.Connected = true
+	session.LastSeen = time.Now()
+	m.conns[conn] = playerID
+
+	return reconnected, m.connectedPlayersLocked()
+}
+
+func (m *matchState) unregisterConnection(conn *websocket.Conn) (playerID string, connectedPlayers int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	playerID = m.conns[conn]
+	delete(m.conns, conn)
+	if session, ok := m.players[playerID]; ok {
+		session.Connected = false
+		session.LastSeen = time.Now()
+	}
+	return playerID, m.connectedPlayersLocked()
+}
+
+func (m *matchState) connectedPlayersLocked() int {
+	count := 0
+	for _, session := range m.players {
+		if session.Connected {
+			count++
+		}
+	}
+	return count
+}
+
+func (m *matchState) connectedPlayers() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.connectedPlayersLocked()
+}
+
+func (m *matchState) tryStartMatch(minPlayers int) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.running {
+		return false
+	}
+	if m.connectedPlayersLocked() < minPlayers {
+		return false
+	}
+	m.running = true
+	return true
+}
+
+func (m *matchState) isRunning() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.running
+}
+
+func (m *matchState) withSimulation(fn func(*Simulation)) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	fn(m.sim)
+}
+
+func (m *matchState) snapshot() (tick int, players []PlayerState, towers []Tower, enemies []Enemy) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.sim.Tick(), m.sim.Players(), m.sim.Towers(), m.sim.Enemies()
+}
+
+func (m *matchState) connectionPlayer(conn *websocket.Conn) string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.conns[conn]
+}

@@ -2,12 +2,18 @@
   description = "Sergio TD dev environment (Godot client + Go server)";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      flake-utils,
+    }:
+    flake-utils.lib.eachDefaultSystem (
+      system:
       let
         pkgs = import nixpkgs { inherit system; };
 
@@ -25,6 +31,41 @@
           runtimeInputs = [ pkgs.godot_4 ];
           text = ''
             exec godot4 --path ${self}/client
+          '';
+        };
+        runDev = pkgs.writeShellApplication {
+          name = "sergio-td-dev";
+          runtimeInputs = [
+            pkgs.go
+            pkgs.godot_4
+            pkgs.coreutils
+            pkgs.stdenv.cc
+          ];
+          text = ''
+              set -e
+
+              echo "[sergio-td] Starting server..."
+              (
+               cd ${self}/server
+               go run ./cmd/server
+              ) &
+              SERVER_PID=$!
+              until nc -z localhost 8080; do
+                sleep 0.2
+              done
+
+              echo "[sergio-td] Starting client..."
+              godot4 --path ${self}/client &
+              CLIENT_PID=$!
+
+              cleanup() {
+                echo "Stopping processes..."
+                  kill $SERVER_PID $CLIENT_PID 2>/dev/null || true
+              }
+
+            trap cleanup EXIT
+
+              wait
           '';
         };
       in
@@ -62,6 +103,12 @@
             type = "app";
             program = "${runClient}/bin/sergio-td-client";
           };
+
+          dev = {
+            type = "app";
+            program = "${runDev}/bin/sergio-td-dev";
+          };
         };
-      });
+      }
+    );
 }

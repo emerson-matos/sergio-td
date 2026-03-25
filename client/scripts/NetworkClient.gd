@@ -33,7 +33,7 @@ func _process(_delta: float) -> void:
 		_handle_server_message(packet)
 
 func _handle_server_message(raw_packet: String) -> void:
-	var parsed := JSON.parse_string(raw_packet)
+	var parsed: Variant = JSON.parse_string(raw_packet)
 	if parsed == null or not (parsed is Dictionary):
 		print("[server] mensagem inválida: %s" % raw_packet)
 		return

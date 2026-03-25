@@ -59,7 +59,7 @@ func _handle_server_message(raw_packet: String) -> void:
 		print("[<<] ", msg_type, ": ", payload)
 	
 	match msg_type:
-		"HELLO_ACK":
+		"ACK_HELLO":
 			waypoints = payload.get("waypoints", [])
 			tower_types = payload.get("towerTypes", {})
 			enemy_types = payload.get("enemyTypes", {})

@@ -22,19 +22,19 @@ var MapWaypoints = []Waypoint{
 }
 
 type EnemyType struct {
-	Name     string  `json:"name"`
-	HP       int     `json:"hp"`
-	Speed    float64 `json:"speed"`
-	Reward   int     `json:"reward"`
-	Color    string  `json:"color"`
+	Name   string  `json:"name"`
+	HP     int     `json:"hp"`
+	Speed  float64 `json:"speed"`
+	Reward int     `json:"reward"`
+	Color  string  `json:"color"`
 }
 
 var EnemyTypes = map[string]EnemyType{
-	"boleto":    {Name: "Boleto", HP: 100, Speed: 0.5, Reward: 10, Color: "red"},
-	"imposto":   {Name: "Imposto", HP: 200, Speed: 0.4, Reward: 20, Color: "orange"},
-	"taxa":      {Name: "Taxa", HP: 400, Speed: 0.3, Reward: 40, Color: "yellow"},
-	"multa":     {Name: "Multa", HP: 800, Speed: 0.25, Reward: 80, Color: "purple"},
-	"execucao":  {Name: "Execução", HP: 2000, Speed: 0.15, Reward: 200, Color: "darkred"},
+	"boleto":   {Name: "Boleto", HP: 100, Speed: 0.5, Reward: 10, Color: "red"},
+	"imposto":  {Name: "Imposto", HP: 200, Speed: 0.4, Reward: 20, Color: "orange"},
+	"taxa":     {Name: "Taxa", HP: 400, Speed: 0.3, Reward: 40, Color: "yellow"},
+	"multa":    {Name: "Multa", HP: 800, Speed: 0.25, Reward: 80, Color: "purple"},
+	"execucao": {Name: "Execução", HP: 2000, Speed: 0.15, Reward: 200, Color: "darkred"},
 }
 
 type TowerType struct {
@@ -48,11 +48,11 @@ type TowerType struct {
 }
 
 var TowerTypes = map[string]TowerType{
-	"raiz":     {Name: "Careca Raiz", Cost: 100, Damage: 25, Range: 4, FireRate: 10, Projectile: "chinelo", Special: ""},
+	"raiz":      {Name: "Careca Raiz", Cost: 100, Damage: 25, Range: 4, FireRate: 10, Projectile: "chinelo", Special: ""},
 	"brilhante": {Name: "Careca Brilhante", Cost: 250, Damage: 50, Range: 6, FireRate: 15, Projectile: "laser", Special: "piercing"},
-	"tank":     {Name: "Careca Tank", Cost: 150, Damage: 10, Range: 2.5, FireRate: 20, Projectile: "escudo", Special: "block"},
-	"coach":    {Name: "Careca Coach", Cost: 300, Damage: 0, Range: 5, FireRate: 0, Projectile: "", Special: "buff"},
-	"hacker":   {Name: "Careca Hacker", Cost: 200, Damage: 0, Range: 0, FireRate: 0, Projectile: "", Special: "income"},
+	"tank":      {Name: "Careca Tank", Cost: 150, Damage: 10, Range: 2.5, FireRate: 20, Projectile: "escudo", Special: "block"},
+	"coach":     {Name: "Careca Coach", Cost: 300, Damage: 0, Range: 5, FireRate: 0, Projectile: "", Special: "buff"},
+	"hacker":    {Name: "Careca Hacker", Cost: 200, Damage: 0, Range: 0, FireRate: 0, Projectile: "", Special: "income"},
 }
 
 type UpgradePath struct {
@@ -63,32 +63,32 @@ type UpgradePath struct {
 }
 
 type Enemy struct {
-	ID          string  `json:"id"`
-	Type        string  `json:"type"`
-	X           float64 `json:"x"`
-	Y           float64 `json:"y"`
-	HP          int     `json:"hp"`
-	MaxHP       int     `json:"maxHp"`
-	Speed       float64 `json:"speed"`
-	Reward      int     `json:"reward"`
-	PathIndex   int     `json:"pathIndex"`
+	ID           string  `json:"id"`
+	Type         string  `json:"type"`
+	X            float64 `json:"x"`
+	Y            float64 `json:"y"`
+	HP           int     `json:"hp"`
+	MaxHP        int     `json:"maxHp"`
+	Speed        float64 `json:"speed"`
+	Reward       int     `json:"reward"`
+	PathIndex    int     `json:"pathIndex"`
 	PathProgress float64 `json:"pathProgress"`
-	Frozen      int     `json:"frozen"`
+	Frozen       int     `json:"frozen"`
 }
 
 type Tower struct {
-	ID          string  `json:"id"`
-	OwnerID     string  `json:"ownerId"`
-	Type        string  `json:"type"`
-	X           float64 `json:"x"`
-	Y           float64 `json:"y"`
-	Level       int     `json:"level"`
-	TargetMode  string  `json:"targetMode"`
-	BaseCost    int     `json:"baseCost"`
-	Damage      int     `json:"damage"`
-	Range       float64 `json:"range"`
-	LastFire    int     `json:"lastFire"`
-	Buffed      bool    `json:"buffed"`
+	ID         string  `json:"id"`
+	OwnerID    string  `json:"ownerId"`
+	Type       string  `json:"type"`
+	X          float64 `json:"x"`
+	Y          float64 `json:"y"`
+	Level      int     `json:"level"`
+	TargetMode string  `json:"targetMode"`
+	BaseCost   int     `json:"baseCost"`
+	Damage     int     `json:"damage"`
+	Range      float64 `json:"range"`
+	LastFire   int     `json:"lastFire"`
+	Buffed     bool    `json:"buffed"`
 }
 
 type PlayerState struct {
@@ -102,34 +102,38 @@ type WaveConfig struct {
 	EnemyType string `json:"enemyType"`
 	Count     int    `json:"count"`
 	Interval  int    `json:"interval"`
+	Spawned   int    `json:"spawned"`
 }
 
 type Wave struct {
-	Number     int         `json:"number"`
-	Configs    []WaveConfig `json:"configs"`
-	EnemiesSpawned int     `json:"enemiesSpawned"`
-	EnemiesKilled int      `json:"enemiesKilled"`
-	Completed   bool      `json:"completed"`
+	Number         int          `json:"number"`
+	Configs        []WaveConfig `json:"configs"`
+	TotalEnemies   int          `json:"totalEnemies"`
+	EnemiesSpawned int          `json:"enemiesSpawned"`
+	EnemiesKilled  int          `json:"enemiesKilled"`
+	Completed      bool         `json:"completed"`
 }
 
 type playerRuntime struct {
-	Gold      int
-	Lives     int
-	Score     int
-	TowerGold int
+	Gold            int
+	Lives           int
+	Score           int
+	TowerGold       int
+	TowersBuilt     int
+	TotalGoldEarned int
 }
 
 type Simulation struct {
-	tick           int
-	nextEnemyID    int
-	nextTowerID    int
-	waveNumber     int
-	waves          []Wave
-	enemies        []Enemy
-	towers         []Tower
-	players        map[string]*playerRuntime
-	incomeTick     int
-	gameOver       bool
+	tick        int
+	nextEnemyID int
+	nextTowerID int
+	waveNumber  int
+	waves       []Wave
+	enemies     []Enemy
+	towers      []Tower
+	players     map[string]*playerRuntime
+	incomeTick  int
+	gameOver    bool
 }
 
 func NewSimulation() *Simulation {
@@ -145,26 +149,26 @@ func generateWaves(numWaves int) []Wave {
 	waves := make([]Wave, numWaves)
 	for i := 0; i < numWaves; i++ {
 		wave := Wave{Number: i + 1}
-		
+
 		if i < 3 {
 			wave.Configs = []WaveConfig{{EnemyType: "boleto", Count: 5 + i*3, Interval: 15}}
 		} else if i < 6 {
 			wave.Configs = []WaveConfig{
 				{EnemyType: "boleto", Count: 8 + i, Interval: 12},
-				{EnemyType: "imposto", Count: 3 + (i-3), Interval: 20},
+				{EnemyType: "imposto", Count: 3 + (i - 3), Interval: 20},
 			}
 		} else if i < 9 {
 			wave.Configs = []WaveConfig{
 				{EnemyType: "boleto", Count: 10 + i, Interval: 10},
-				{EnemyType: "imposto", Count: 5 + (i-6), Interval: 15},
-				{EnemyType: "taxa", Count: 2 + (i-6), Interval: 25},
+				{EnemyType: "imposto", Count: 5 + (i - 6), Interval: 15},
+				{EnemyType: "taxa", Count: 2 + (i - 6), Interval: 25},
 			}
 		} else {
 			wave.Configs = []WaveConfig{
 				{EnemyType: "boleto", Count: 15 + i, Interval: 8},
 				{EnemyType: "imposto", Count: 8 + i, Interval: 12},
 				{EnemyType: "taxa", Count: 5 + i, Interval: 18},
-				{EnemyType: "multa", Count: 2 + (i-9), Interval: 30},
+				{EnemyType: "multa", Count: 2 + (i - 9), Interval: 30},
 			}
 		}
 		waves[i] = wave
@@ -176,16 +180,19 @@ func (s *Simulation) StartWave() bool {
 	if s.waveNumber >= len(s.waves) {
 		return false
 	}
-	
+
 	currentWave := &s.waves[s.waveNumber]
 	currentWave.EnemiesSpawned = 0
 	currentWave.EnemiesKilled = 0
 	currentWave.Completed = false
-	
+
+	totalEnemies := 0
 	for i := range currentWave.Configs {
-		currentWave.Configs[i].Interval = currentWave.Configs[i].Interval
+		totalEnemies += currentWave.Configs[i].Count
+		currentWave.Configs[i].Spawned = 0
 	}
-	
+	currentWave.TotalEnemies = totalEnemies
+
 	s.waveNumber++
 	return true
 }
@@ -198,14 +205,9 @@ func (s *Simulation) IsWaveComplete() bool {
 	if s.waveNumber == 0 || s.waveNumber > len(s.waves) {
 		return false
 	}
-	
+
 	currentWave := &s.waves[s.waveNumber-1]
-	totalEnemies := 0
-	for _, cfg := range currentWave.Configs {
-		totalEnemies += cfg.Count
-	}
-	
-	return currentWave.EnemiesKilled >= totalEnemies && len(s.enemies) == 0
+	return currentWave.EnemiesKilled >= currentWave.TotalEnemies && len(s.enemies) == 0
 }
 
 func (s *Simulation) Step() {
@@ -223,71 +225,71 @@ func (s *Simulation) spawnEnemies() {
 	if s.waveNumber == 0 || s.waveNumber > len(s.waves) {
 		return
 	}
-	
+
 	currentWave := &s.waves[s.waveNumber-1]
-	
+
 	for i, cfg := range currentWave.Configs {
 		spawnTick := s.tick % cfg.Interval
-		if spawnTick == 0 && currentWave.EnemiesSpawned < cfg.Count {
+		if spawnTick == 0 && currentWave.Configs[i].Spawned < cfg.Count {
 			enemyType, ok := EnemyTypes[cfg.EnemyType]
 			if !ok {
 				continue
 			}
-			
+
 			s.nextEnemyID++
 			enemy := Enemy{
-				ID:            fmt.Sprintf("e_%d", s.nextEnemyID),
-				Type:          cfg.EnemyType,
-				X:             MapWaypoints[0].X,
-				Y:             MapWaypoints[0].Y,
-				HP:            enemyType.HP,
-				MaxHP:         enemyType.HP,
-				Speed:         enemyType.Speed,
-				Reward:        enemyType.Reward,
-				PathIndex:     0,
-				PathProgress:  0,
+				ID:           fmt.Sprintf("e_%d", s.nextEnemyID),
+				Type:         cfg.EnemyType,
+				X:            MapWaypoints[0].X,
+				Y:            MapWaypoints[0].Y,
+				HP:           enemyType.HP,
+				MaxHP:        enemyType.HP,
+				Speed:        enemyType.Speed,
+				Reward:       enemyType.Reward,
+				PathIndex:    0,
+				PathProgress: 0,
 			}
 			s.enemies = append(s.enemies, enemy)
+			currentWave.Configs[i].Spawned++
 			currentWave.EnemiesSpawned++
-			currentWave.Configs[i].Count--
 		}
 	}
 }
 
 func (s *Simulation) moveEnemies() {
 	alive := make([]Enemy, 0, len(s.enemies))
-	
+
 	for _, enemy := range s.enemies {
 		speed := enemy.Speed
 		if enemy.Frozen > 0 {
 			speed *= 0.5
 			enemy.Frozen--
 		}
-		
+
 		enemy.PathProgress += speed
-		
+
 		if enemy.PathIndex < len(MapWaypoints)-1 {
 			currentWP := MapWaypoints[enemy.PathIndex]
 			nextWP := MapWaypoints[enemy.PathIndex+1]
-			
+
 			dx := nextWP.X - currentWP.X
 			dy := nextWP.Y - currentWP.Y
 			segmentLen := math.Sqrt(dx*dx + dy*dy)
-			
+
 			if enemy.PathProgress >= segmentLen {
 				enemy.PathIndex++
 				enemy.PathProgress = 0
 			}
 		}
-		
+
 		if enemy.PathIndex < len(MapWaypoints)-1 {
 			currentWP := MapWaypoints[enemy.PathIndex]
 			nextWP := MapWaypoints[enemy.PathIndex+1]
-			
+
 			dx := nextWP.X - currentWP.X
 			dy := nextWP.Y - currentWP.Y
 			segmentLen := math.Sqrt(dx*dx + dy*dy)
-			
+
 			if segmentLen > 0 {
 				t := enemy.PathProgress / segmentLen
 				enemy.X = currentWP.X + dx*t
@@ -297,10 +299,10 @@ func (s *Simulation) moveEnemies() {
 			s.leakEnemy(enemy)
 			continue
 		}
-		
+
 		alive = append(alive, enemy)
 	}
-	
+
 	s.enemies = alive
 }
 
@@ -311,7 +313,7 @@ func (s *Simulation) leakEnemy(enemy Enemy) {
 			player.Lives = 0
 		}
 	}
-	
+
 	if s.TotalLives() <= 0 {
 		s.gameOver = true
 	}
@@ -321,36 +323,36 @@ func (s *Simulation) applyTowerCombat() {
 	if len(s.towers) == 0 || len(s.enemies) == 0 {
 		return
 	}
-	
+
 	for i := range s.towers {
 		tower := &s.towers[i]
-		
+
 		towerType, ok := TowerTypes[tower.Type]
 		if !ok {
 			continue
 		}
-		
+
 		if towerType.Special == "buff" || towerType.Special == "income" {
 			continue
 		}
-		
+
 		if s.tick-tower.LastFire < towerType.FireRate {
 			continue
 		}
-		
+
 		target := s.findTarget(tower)
 		if target == nil {
 			continue
 		}
-		
+
 		damage := tower.Damage
 		if tower.Buffed {
 			damage = int(float64(damage) * 1.5)
 		}
-		
+
 		target.HP -= damage
 		tower.LastFire = s.tick
-		
+
 		if target.HP <= 0 {
 			s.killEnemy(target.ID, tower.OwnerID)
 		}
@@ -361,27 +363,27 @@ func (s *Simulation) findTarget(tower *Tower) *Enemy {
 	if len(s.enemies) == 0 {
 		return nil
 	}
-	
+
 	var candidates []Enemy
 	for _, e := range s.enemies {
 		dx := tower.X - e.X
 		dy := tower.Y - e.Y
 		dist := math.Sqrt(dx*dx + dy*dy)
-		
+
 		effectiveRange := tower.Range
 		if tower.Buffed {
 			effectiveRange *= 1.25
 		}
-		
+
 		if dist <= effectiveRange {
 			candidates = append(candidates, e)
 		}
 	}
-	
+
 	if len(candidates) == 0 {
 		return nil
 	}
-	
+
 	switch tower.TargetMode {
 	case "first":
 		best := candidates[0]
@@ -445,7 +447,7 @@ func (s *Simulation) findTarget(tower *Tower) *Enemy {
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -454,14 +456,15 @@ func (s *Simulation) killEnemy(enemyID, killerID string) {
 		if e.ID == enemyID {
 			enemy := e
 			s.enemies = append(s.enemies[:i], s.enemies[i+1:]...)
-			
+
 			if s.waveNumber > 0 && s.waveNumber <= len(s.waves) {
 				s.waves[s.waveNumber-1].EnemiesKilled++
 			}
-			
+
 			player := s.ensurePlayer(killerID)
 			player.Gold += enemy.Reward
 			player.Score++
+			player.TotalGoldEarned += enemy.Reward
 			return
 		}
 	}
@@ -470,12 +473,12 @@ func (s *Simulation) killEnemy(enemyID, killerID string) {
 func (s *Simulation) applyPassiveEffects() {
 	for i := range s.towers {
 		tower := &s.towers[i]
-		
+
 		towerType, ok := TowerTypes[tower.Type]
 		if !ok {
 			continue
 		}
-		
+
 		if towerType.Special == "buff" {
 			for j := range s.towers {
 				if i == j {
@@ -485,13 +488,13 @@ func (s *Simulation) applyPassiveEffects() {
 				dx := tower.X - other.X
 				dy := tower.Y - other.Y
 				dist := math.Sqrt(dx*dx + dy*dy)
-				
+
 				if dist <= tower.Range {
 					other.Buffed = true
 				}
 			}
 		}
-		
+
 		if towerType.Special == "income" {
 			if s.incomeTick%50 == 0 {
 				player := s.ensurePlayer(tower.OwnerID)
@@ -505,24 +508,22 @@ func (s *Simulation) processWaves() {
 	if s.waveNumber == 0 {
 		return
 	}
-	
+
 	if s.waveNumber > len(s.waves) && len(s.enemies) == 0 {
 		s.gameOver = true
 		return
 	}
-	
+
 	if s.waveNumber <= len(s.waves) {
 		currentWave := &s.waves[s.waveNumber-1]
-		totalEnemies := 0
-		for _, cfg := range currentWave.Configs {
-			totalEnemies += cfg.Count + currentWave.EnemiesKilled
-		}
-		
-		if currentWave.EnemiesKilled >= totalEnemies && len(s.enemies) == 0 && !currentWave.Completed {
+
+		if currentWave.EnemiesKilled >= currentWave.TotalEnemies && len(s.enemies) == 0 && !currentWave.Completed {
 			currentWave.Completed = true
-			// Auto-start next wave
+			// Auto-start next wave or advance past all waves for victory
 			if s.waveNumber < len(s.waves) {
 				s.StartWave()
+			} else {
+				s.waveNumber++
 			}
 		}
 	}
@@ -588,21 +589,21 @@ func (s *Simulation) PlaceTower(playerID, towerType string, x, y float64) (Tower
 	if towerType == "" {
 		return Tower{}, fmt.Errorf("missing towerType")
 	}
-	
+
 	towerDef, ok := TowerTypes[towerType]
 	if !ok {
 		return Tower{}, fmt.Errorf("unsupported towerType: %s", towerType)
 	}
-	
+
 	if x < 0 || x > 20 || y < 0 || y > 11 {
 		return Tower{}, fmt.Errorf("invalid position")
 	}
-	
+
 	player := s.ensurePlayer(playerID)
 	if player.Gold < towerDef.Cost {
 		return Tower{}, fmt.Errorf("insufficient gold")
 	}
-	
+
 	for _, existing := range s.towers {
 		dx := existing.X - x
 		dy := existing.Y - y
@@ -610,7 +611,7 @@ func (s *Simulation) PlaceTower(playerID, towerType string, x, y float64) (Tower
 			return Tower{}, fmt.Errorf("position occupied")
 		}
 	}
-	
+
 	s.nextTowerID++
 	tower := Tower{
 		ID:         fmt.Sprintf("t_%d", s.nextTowerID),
@@ -626,6 +627,7 @@ func (s *Simulation) PlaceTower(playerID, towerType string, x, y float64) (Tower
 	}
 	s.towers = append(s.towers, tower)
 	player.Gold -= towerDef.Cost
+	player.TowersBuilt++
 
 	return tower, nil
 }
@@ -664,7 +666,7 @@ func (s *Simulation) UpgradeTower(playerID, towerID string) (Tower, error) {
 	tower.Level++
 	tower.Damage = int(float64(towerDef.Damage) * (1 + float64(tower.Level-1)*0.5))
 	tower.Range = towerDef.Range * (1 + float64(tower.Level-1)*0.1)
-	
+
 	s.towers[idx] = tower
 	player.Gold -= upgradeCost
 
@@ -675,21 +677,21 @@ func (s *Simulation) SetTargetMode(playerID, towerID, mode string) error {
 	if playerID == "" || towerID == "" {
 		return fmt.Errorf("missing playerId or towerId")
 	}
-	
+
 	validModes := map[string]bool{
 		"first": true, "last": true, "strong": true, "close": true,
 	}
 	if !validModes[mode] {
 		return fmt.Errorf("invalid target mode")
 	}
-	
+
 	for i, tower := range s.towers {
 		if tower.ID == towerID && tower.OwnerID == playerID {
 			s.towers[i].TargetMode = mode
 			return nil
 		}
 	}
-	
+
 	return fmt.Errorf("tower not found")
 }
 
@@ -748,6 +750,26 @@ func (s *Simulation) ensurePlayer(playerID string) *playerRuntime {
 	}
 	s.players[playerID] = player
 	return player
+}
+
+type PlayerMatchStats struct {
+	ID              string `json:"id"`
+	Score           int    `json:"score"`
+	TowersBuilt     int    `json:"towersBuilt"`
+	TotalGoldEarned int    `json:"totalGoldEarned"`
+}
+
+func (s *Simulation) MatchStats() []PlayerMatchStats {
+	stats := make([]PlayerMatchStats, 0, len(s.players))
+	for id, p := range s.players {
+		stats = append(stats, PlayerMatchStats{
+			ID:              id,
+			Score:           p.Score,
+			TowersBuilt:     p.TowersBuilt,
+			TotalGoldEarned: p.TotalGoldEarned,
+		})
+	}
+	return stats
 }
 
 func GetWaypoints() []Waypoint {

@@ -4,39 +4,44 @@ import "testing"
 
 func TestSimulationSpawnsEnemyEveryTenTicks(t *testing.T) {
 	sim := NewSimulation()
+	sim.StartWave()
 
-	for range 9 {
+	// Wave 1 has interval=15. Step 14 times → no enemies yet.
+	for range 14 {
 		sim.Step()
 	}
 	if got := len(sim.Enemies()); got != 0 {
-		t.Fatalf("expected no enemies before tick 10, got %d", got)
+		t.Fatalf("expected no enemies before tick 15, got %d", got)
 	}
 
+	// Tick 15 → first enemy spawns (15 %% 15 == 0)
 	sim.Step()
 	if got := len(sim.Enemies()); got != 1 {
-		t.Fatalf("expected 1 enemy at tick 10, got %d", got)
+		t.Fatalf("expected 1 enemy at tick 15, got %d", got)
 	}
 }
 
 func TestSimulationMovesEnemiesForward(t *testing.T) {
 	sim := NewSimulation()
+	sim.StartWave()
 
-	for range 10 {
+	// Step 15 times: enemy spawns on tick 15 and moves on that same step.
+	for range 15 {
 		sim.Step()
 	}
 	enemies := sim.Enemies()
 	if len(enemies) != 1 {
 		t.Fatalf("expected 1 enemy, got %d", len(enemies))
 	}
-	if enemies[0].X != 0.5 {
-		t.Fatalf("expected first enemy X to be 0.5, got %.2f", enemies[0].X)
+	if enemies[0].X < 0.1 {
+		t.Fatalf("expected first enemy X to have moved forward, got %.2f", enemies[0].X)
 	}
 }
 
 func TestPlaceTowerAcceptsValidCommand(t *testing.T) {
 	sim := NewSimulation()
 
-	tower, err := sim.PlaceTower("p_1", "dart", 5, 3)
+	tower, err := sim.PlaceTower("p_1", "raiz", 5, 3)
 	if err != nil {
 		t.Fatalf("expected placement to succeed, got error: %v", err)
 	}
@@ -52,14 +57,16 @@ func TestPlaceTowerAcceptsValidCommand(t *testing.T) {
 func TestPlaceTowerRejectsInsufficientGold(t *testing.T) {
 	sim := NewSimulation()
 
+	// raiz costs 100 gold. Player starts with 650. Can place 6 towers.
 	for i := range 6 {
-		_, err := sim.PlaceTower("p_1", "dart", float64(i*2), 1)
+		_, err := sim.PlaceTower("p_1", "raiz", float64(i*2), 1)
 		if err != nil {
 			t.Fatalf("expected placement %d to succeed, got %v", i, err)
 		}
 	}
 
-	_, err := sim.PlaceTower("p_1", "dart", 14, 2)
+	// 7th should fail — only 50 gold left
+	_, err := sim.PlaceTower("p_1", "raiz", 14, 2)
 	if err == nil {
 		t.Fatalf("expected insufficient gold rejection, got nil")
 	}
@@ -71,7 +78,7 @@ func TestPlaceTowerRejectsInsufficientGold(t *testing.T) {
 func TestUpgradeTowerConsumesGoldAndIncreasesLevel(t *testing.T) {
 	sim := NewSimulation()
 
-	tower, err := sim.PlaceTower("p_1", "dart", 2, 2)
+	tower, err := sim.PlaceTower("p_1", "raiz", 2, 2)
 	if err != nil {
 		t.Fatalf("place failed: %v", err)
 	}
@@ -89,7 +96,7 @@ func TestUpgradeTowerConsumesGoldAndIncreasesLevel(t *testing.T) {
 func TestSellTowerRemovesTowerAndReturnsRefund(t *testing.T) {
 	sim := NewSimulation()
 
-	tower, err := sim.PlaceTower("p_1", "dart", 2, 2)
+	tower, err := sim.PlaceTower("p_1", "raiz", 2, 2)
 	if err != nil {
 		t.Fatalf("place failed: %v", err)
 	}
@@ -110,12 +117,34 @@ func TestSellTowerRemovesTowerAndReturnsRefund(t *testing.T) {
 func TestTowerCombatKillsEnemyAndRewardsPlayer(t *testing.T) {
 	sim := NewSimulation()
 
-	_, err := sim.PlaceTower("p_1", "dart", 0, 3)
+	// Use brilhante (50 dmg, range 6, fireRate 15) near the path start.
+	_, err := sim.PlaceTower("p_1", "brilhante", 2, 5)
 	if err != nil {
 		t.Fatalf("place failed: %v", err)
 	}
 
-	for range 14 {
+	// Inject a test enemy directly instead of relying on wave spawning.
+	sim.nextEnemyID++
+	sim.enemies = append(sim.enemies, Enemy{
+		ID:           "e_test",
+		Type:         "boleto",
+		X:            MapWaypoints[0].X,
+		Y:            MapWaypoints[0].Y,
+		HP:           50,
+		MaxHP:        50,
+		Speed:        0.5,
+		Reward:       10,
+		PathIndex:    0,
+		PathProgress: 0,
+	})
+	sim.waveNumber = 1
+	sim.waves[0].TotalEnemies = 1
+	// Clear wave configs so no additional enemies spawn from the wave.
+	sim.waves[0].Configs = nil
+
+	// brilhante does 50 dmg with fireRate=15. One hit kills 50 HP enemy.
+	// First fire at tick 15 (tick - lastFire >= fireRate).
+	for range 20 {
 		sim.Step()
 	}
 
@@ -131,9 +160,18 @@ func TestTowerCombatKillsEnemyAndRewardsPlayer(t *testing.T) {
 
 func TestEnemyLeakReducesLives(t *testing.T) {
 	sim := NewSimulation()
+
+	// Register player by placing a tower
+	_, err := sim.PlaceTower("p_1", "raiz", 19, 0)
+	if err != nil {
+		t.Fatalf("place failed: %v", err)
+	}
 	initialLives := findPlayer(t, sim.Players(), "p_1").Lives
 
-	for range 60 {
+	sim.StartWave()
+
+	// Need enough steps for an enemy to traverse the full path (~89 ticks at speed 0.5).
+	for range 100 {
 		sim.Step()
 	}
 

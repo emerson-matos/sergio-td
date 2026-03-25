@@ -74,12 +74,6 @@ func (m *matchState) connectedPlayersLocked() int {
 	return count
 }
 
-func (m *matchState) connectedPlayers() int {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.connectedPlayersLocked()
-}
-
 func (m *matchState) tryStartMatch(minPlayers int) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -94,22 +88,10 @@ func (m *matchState) tryStartMatch(minPlayers int) bool {
 	return true
 }
 
-func (m *matchState) isRunning() bool {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.running
-}
-
 func (m *matchState) withSimulation(fn func(*Simulation)) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	fn(m.sim)
-}
-
-func (m *matchState) snapshot() (tick int, players []PlayerState, towers []Tower, enemies []Enemy, waveNumber int) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.sim.Tick(), m.sim.Players(), m.sim.Towers(), m.sim.Enemies(), m.sim.WaveNumber()
 }
 
 func (m *matchState) connectionPlayer(conn *websocket.Conn) string {
@@ -137,10 +119,10 @@ func (m *matchState) getConnectedCount() int {
 func (m *matchState) allPlayersReady() bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	connectedCount := 0
 	readyCount := 0
-	
+
 	for _, session := range m.players {
 		if session.Connected {
 			connectedCount++
@@ -149,7 +131,7 @@ func (m *matchState) allPlayersReady() bool {
 			}
 		}
 	}
-	
+
 	// Need at least 1 player and all must be ready
 	return connectedCount > 0 && connectedCount == readyCount
 }
@@ -160,8 +142,15 @@ func (m *matchState) isSimulationRunning() bool {
 	return m.running
 }
 
-func (m *matchState) setSimulationRunning(running bool) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+// Locked variants for use inside withSimulation callbacks (mu already held).
+func (m *matchState) isSimulationRunningLocked() bool {
+	return m.running
+}
+
+func (m *matchState) setSimulationRunningLocked(running bool) {
 	m.running = running
+}
+
+func (m *matchState) getConnectedCountLocked() int {
+	return m.connectedPlayersLocked()
 }

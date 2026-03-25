@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -18,11 +18,12 @@ var upgrader = websocket.Upgrader{
 }
 
 type envelope struct {
-	Version int                    `json:"v"`
-	Type    string                 `json:"type"`
-	TS      float64                `json:"ts"`
-	MatchID string                 `json:"matchId,omitempty"`
-	Payload map[string]interface{} `json:"payload,omitempty"`
+	Version       int                    `json:"v"`
+	Type          string                 `json:"type"`
+	TS            float64                `json:"ts"`
+	MatchID       string                 `json:"matchId,omitempty"`
+	CorrelationID string                 `json:"correlationId,omitempty"`
+	Payload       map[string]interface{} `json:"payload,omitempty"`
 }
 
 var sharedMatch = newMatchState("m_1")
@@ -38,10 +39,10 @@ func Health(w http.ResponseWriter, _ *http.Request) {
 func Handle(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("upgrade failed: %v", err)
+		slog.Error("upgrade failed", "error", err)
 		return
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	defer func() {
 		if currentRoomID != "" && currentPlayerID != "" {
 			lobbyServer.LeaveRoom(currentRoomID, currentPlayerID)
@@ -94,7 +95,11 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 					"matchId":        sharedMatch.matchID,
 					"isReconnected":  reconnected,
 					"connectedCount": connected,
+					"waypoints":      GetWaypoints(),
+					"towerTypes":     GetTowerTypes(),
+					"enemyTypes":     GetEnemyTypes(),
 				})
+				slog.Info("player connected", "playerId", playerID, "reconnected", reconnected, "connected", connected)
 				broadcastLobbyState(connected)
 
 			case "START_WAVE":
@@ -104,7 +109,7 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 							"waveNumber": sim.WaveNumber(),
 						})
 					} else {
-						log.Printf("[WAVE] Não foi possível iniciar wave: waveNumber=%d, totalWaves=%d", sim.WaveNumber(), len(sim.Waves()))
+						slog.Warn("cannot start wave", "waveNumber", sim.WaveNumber(), "totalWaves", len(sim.Waves()))
 					}
 				})
 
@@ -117,7 +122,7 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 				if ready && sharedMatch.allPlayersReady() && !sharedMatch.isSimulationRunning() {
 					sharedMatch.withSimulation(func(sim *Simulation) {
 						sim.StartWave()
-						sharedMatch.setSimulationRunning(true)
+						sharedMatch.setSimulationRunningLocked(true)
 					})
 					broadcastAll("EVENT_MATCH_STARTED", map[string]any{
 						"matchId": sharedMatch.matchID,
@@ -268,48 +273,56 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 			}
 
 		case err := <-readErr:
-			log.Printf("read failed: %v", err)
+			slog.Error("read failed", "error", err)
 			return
 
 		case <-ticker.C:
+			tickStart := time.Now()
 			sharedMatch.withSimulation(func(sim *Simulation) {
-				if !sharedMatch.isSimulationRunning() && sharedMatch.getConnectedCount() >= 1 {
-					sharedMatch.setSimulationRunning(true)
+				if !sharedMatch.isSimulationRunningLocked() && sharedMatch.getConnectedCountLocked() >= 1 {
+					sharedMatch.setSimulationRunningLocked(true)
+					sim.StartWave()
 					broadcastAll("EVENT_MATCH_STARTED", map[string]any{})
 					broadcastAll("EVENT_WAVE_STARTED", map[string]any{
-						"waveNumber": 1,
+						"waveNumber": sim.WaveNumber(),
 					})
 				}
 
-				if sharedMatch.isSimulationRunning() {
-					if sim.Tick(); err != nil {
-						log.Printf("tick error: %v", err)
-					}
+				if sharedMatch.isSimulationRunningLocked() {
+					sim.Step()
 				}
 
-				tick, players, towers, enemies, waveNum := sharedMatch.snapshot()
 				broadcastAll("SNAPSHOT_STATE", map[string]any{
-					"tick":       tick,
-					"waveNumber": waveNum,
-					"players":    players,
-					"towers":     towers,
-					"enemies":    enemies,
+					"tick":       sim.Tick(),
+					"waveNumber": sim.WaveNumber(),
+					"players":    sim.Players(),
+					"towers":     sim.Towers(),
+					"enemies":    sim.Enemies(),
 				})
 
-				if sim.GameOver() {
-					broadcastAll("EVENT_MATCH_ENDED", map[string]any{
-						"result":     "defeat",
-						"waveNumber": sim.WaveNumber(),
-						"victory":    false,
-					})
-				} else if sim.Victory() {
+				if sim.Victory() {
 					broadcastAll("EVENT_MATCH_ENDED", map[string]any{
 						"result":     "victory",
 						"waveNumber": sim.WaveNumber(),
 						"victory":    true,
+						"stats":      sim.MatchStats(),
 					})
+					sharedMatch.setSimulationRunningLocked(false)
+				} else if sim.GameOver() {
+					broadcastAll("EVENT_MATCH_ENDED", map[string]any{
+						"result":     "defeat",
+						"waveNumber": sim.WaveNumber(),
+						"victory":    false,
+						"stats":      sim.MatchStats(),
+					})
+					sharedMatch.setSimulationRunningLocked(false)
 				}
 			})
+			tickDuration := time.Since(tickStart)
+			RecordTick(tickDuration)
+			if tickDuration > 50*time.Millisecond {
+				slog.Warn("tick drift", "duration", tickDuration)
+			}
 		}
 	}
 }
@@ -333,7 +346,7 @@ func broadcastAll(msgType string, payload map[string]any) {
 
 	for _, conn := range conns {
 		if err := writeMessage(conn, msgType, payload); err != nil {
-			log.Printf("broadcast %s failed: %v", msgType, err)
+			slog.Error("broadcast failed", "msgType", msgType, "error", err)
 		}
 	}
 }

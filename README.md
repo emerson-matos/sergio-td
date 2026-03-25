@@ -30,10 +30,10 @@ Construir um MVP multiplayer cooperativo/competitivo com:
 
 ## Status atual
 
-Semana 3 iniciada com primeiro comando de gameplay autoritativo:
+Semana 3 concluída no escopo do MVP inicial de comandos:
 
-- `client/` conecta por WebSocket, envia `HELLO` + `START_MATCH` e dispara `COMMAND_PLACE_TOWER`.
-- `server/` em Go valida `COMMAND_PLACE_TOWER` (gold, tipo, posição), responde `ACK_COMMAND`/`ERROR_COMMAND_REJECTED` e inclui `towers`/`players` no `SNAPSHOT_STATE`.
+- `client/` conecta por WebSocket, envia `HELLO` + `START_MATCH` e exercita `COMMAND_PLACE_TOWER`, `COMMAND_UPGRADE_TOWER` e `COMMAND_SELL_TOWER`.
+- `server/` em Go valida comandos de gameplay server-side (gold, dono da torre, nível máximo e posição), responde `ACK_COMMAND`/`ERROR_COMMAND_REJECTED` e inclui `towers`/`players` no `SNAPSHOT_STATE`.
 
 ## Rodando o projeto
 
@@ -93,7 +93,7 @@ Resposta esperada: `HTTP/1.1 200 OK` e body `ok`.
 
 ## Próximos passos
 
-1. Completar Semana 3:
-   - `COMMAND_UPGRADE_TOWER`,
-   - `COMMAND_SELL_TOWER`,
-   - custo/economia por jogador com regras de upgrade/venda.
+1. Próxima milestone (Semana 4): multiplayer real.
+   - lobby mínimo (2–4 jogadores),
+   - start sincronizado,
+   - estado por jogador e reconexão simples.

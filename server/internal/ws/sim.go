@@ -151,3 +151,68 @@ func towerCost(towerType string) int {
 		return 0
 	}
 }
+
+func (s *Simulation) UpgradeTower(playerID, towerID string) (Tower, error) {
+	if playerID == "" || towerID == "" {
+		return Tower{}, fmt.Errorf("missing playerId or towerId")
+	}
+
+	idx := -1
+	for i, tower := range s.towers {
+		if tower.ID == towerID {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return Tower{}, fmt.Errorf("tower not found")
+	}
+
+	tower := s.towers[idx]
+	if tower.OwnerID != playerID {
+		return Tower{}, fmt.Errorf("tower does not belong to player")
+	}
+	if tower.Level >= 3 {
+		return Tower{}, fmt.Errorf("max level reached")
+	}
+
+	upgradeCost := tower.BaseCost * tower.Level
+	currentGold := s.playerGold[playerID]
+	if currentGold < upgradeCost {
+		return Tower{}, fmt.Errorf("insufficient gold")
+	}
+
+	tower.Level++
+	s.towers[idx] = tower
+	s.playerGold[playerID] = currentGold - upgradeCost
+
+	return tower, nil
+}
+
+func (s *Simulation) SellTower(playerID, towerID string) (int, error) {
+	if playerID == "" || towerID == "" {
+		return 0, fmt.Errorf("missing playerId or towerId")
+	}
+
+	idx := -1
+	for i, tower := range s.towers {
+		if tower.ID == towerID {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return 0, fmt.Errorf("tower not found")
+	}
+
+	tower := s.towers[idx]
+	if tower.OwnerID != playerID {
+		return 0, fmt.Errorf("tower does not belong to player")
+	}
+
+	refund := (tower.BaseCost / 2) + ((tower.Level - 1) * tower.BaseCost / 2)
+	s.playerGold[playerID] = s.playerGold[playerID] + refund
+
+	s.towers = append(s.towers[:idx], s.towers[idx+1:]...)
+	return refund, nil
+}

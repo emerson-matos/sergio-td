@@ -67,3 +67,42 @@ func TestPlaceTowerRejectsInsufficientGold(t *testing.T) {
 		t.Fatalf("expected insufficient gold error, got %q", err.Error())
 	}
 }
+
+func TestUpgradeTowerConsumesGoldAndIncreasesLevel(t *testing.T) {
+	sim := NewSimulation()
+
+	tower, err := sim.PlaceTower("p_1", "dart", 2, 2)
+	if err != nil {
+		t.Fatalf("place failed: %v", err)
+	}
+
+	updatedTower, err := sim.UpgradeTower("p_1", tower.ID)
+	if err != nil {
+		t.Fatalf("upgrade failed: %v", err)
+	}
+
+	if updatedTower.Level != 2 {
+		t.Fatalf("expected level 2, got %d", updatedTower.Level)
+	}
+}
+
+func TestSellTowerRemovesTowerAndReturnsRefund(t *testing.T) {
+	sim := NewSimulation()
+
+	tower, err := sim.PlaceTower("p_1", "dart", 2, 2)
+	if err != nil {
+		t.Fatalf("place failed: %v", err)
+	}
+
+	refund, err := sim.SellTower("p_1", tower.ID)
+	if err != nil {
+		t.Fatalf("sell failed: %v", err)
+	}
+
+	if refund != 50 {
+		t.Fatalf("expected refund 50, got %d", refund)
+	}
+	if got := len(sim.Towers()); got != 0 {
+		t.Fatalf("expected no towers after sell, got %d", got)
+	}
+}

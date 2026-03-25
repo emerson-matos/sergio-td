@@ -120,6 +120,62 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 					"accepted":  true,
 					"towerId":   tower.ID,
 				})
+			case "COMMAND_UPGRADE_TOWER":
+				playerID := asString(msg.Payload["playerId"])
+				towerID := asString(msg.Payload["towerId"])
+				commandID := asString(msg.Payload["commandId"])
+				if commandID == "" {
+					commandID = fmt.Sprintf("cmd_%d", time.Now().UnixMilli())
+				}
+
+				tower, err := sim.UpgradeTower(playerID, towerID)
+				if err != nil {
+					_ = writeMessage(conn, "ACK_COMMAND", map[string]any{
+						"commandId": commandID,
+						"accepted":  false,
+						"reason":    err.Error(),
+					})
+					_ = writeMessage(conn, "ERROR_COMMAND_REJECTED", map[string]any{
+						"commandId": commandID,
+						"reason":    err.Error(),
+					})
+					continue
+				}
+
+				_ = writeMessage(conn, "ACK_COMMAND", map[string]any{
+					"commandId": commandID,
+					"accepted":  true,
+					"towerId":   tower.ID,
+					"level":     tower.Level,
+				})
+			case "COMMAND_SELL_TOWER":
+				playerID := asString(msg.Payload["playerId"])
+				towerID := asString(msg.Payload["towerId"])
+				commandID := asString(msg.Payload["commandId"])
+				if commandID == "" {
+					commandID = fmt.Sprintf("cmd_%d", time.Now().UnixMilli())
+				}
+
+				refund, err := sim.SellTower(playerID, towerID)
+				if err != nil {
+					_ = writeMessage(conn, "ACK_COMMAND", map[string]any{
+						"commandId": commandID,
+						"accepted":  false,
+						"reason":    err.Error(),
+					})
+					_ = writeMessage(conn, "ERROR_COMMAND_REJECTED", map[string]any{
+						"commandId": commandID,
+						"reason":    err.Error(),
+					})
+					continue
+				}
+
+				_ = writeMessage(conn, "ACK_COMMAND", map[string]any{
+					"commandId": commandID,
+					"accepted":  true,
+					"towerId":   towerID,
+					"refund":    refund,
+				})
 			default:
 				_ = writeMessage(conn, "ECHO", map[string]any{"raw": string(raw)})
 			}

@@ -7,6 +7,9 @@ signal snapshot_received(tick: int, enemies_count: int, towers_count: int)
 
 var _socket := WebSocketPeer.new()
 var _is_connecting := false
+var _placed_tower_id := ""
+var _upgrade_sent := false
+var _sell_sent := false
 
 func connect_to_server(url: String) -> void:
 	var err := _socket.connect_to_url(url)
@@ -47,8 +50,34 @@ func _handle_server_message(raw_packet: String) -> void:
 		emit_signal("snapshot_received", tick, enemies.size(), towers.size())
 	elif message_type == "EVENT_WAVE_STARTED":
 		_send_place_tower()
+	elif message_type == "ACK_COMMAND":
+		_handle_ack_command(parsed.get("payload", {}))
 
 	print("[server] %s" % raw_packet)
+
+func _handle_ack_command(payload_variant: Variant) -> void:
+	if not (payload_variant is Dictionary):
+		return
+	var payload: Dictionary = payload_variant
+	var accepted := bool(payload.get("accepted", false))
+	if not accepted:
+		return
+
+	var tower_id := String(payload.get("towerId", ""))
+	if tower_id != "":
+		_placed_tower_id = tower_id
+
+	if _placed_tower_id == "":
+		return
+
+	if not _upgrade_sent:
+		_upgrade_sent = true
+		_send_upgrade_tower(_placed_tower_id)
+		return
+
+	if not _sell_sent:
+		_sell_sent = true
+		_send_sell_tower(_placed_tower_id)
 
 func _send_hello() -> void:
 	_send_message("HELLO", {
@@ -67,6 +96,20 @@ func _send_place_tower() -> void:
 		"towerType": "dart",
 		"x": 6.0,
 		"y": 3.0
+	})
+
+func _send_upgrade_tower(tower_id: String) -> void:
+	_send_message("COMMAND_UPGRADE_TOWER", {
+		"commandId": "cmd_upgrade_1",
+		"playerId": "p_1",
+		"towerId": tower_id
+	})
+
+func _send_sell_tower(tower_id: String) -> void:
+	_send_message("COMMAND_SELL_TOWER", {
+		"commandId": "cmd_sell_1",
+		"playerId": "p_1",
+		"towerId": tower_id
 	})
 
 func _send_message(message_type: String, payload: Dictionary) -> void:

@@ -110,11 +110,13 @@ func _on_snapshot_received(data: Dictionary) -> void:
 	current_wave = data.get("waveNumber", 0)
 	
 	var players = data.get("players", [])
-	if players.size() > 0:
-		var my_player = players[0]
-		player_gold = my_player.get("gold", 0)
-		player_lives = my_player.get("lives", 0)
-		player_score = my_player.get("score", 0)
+	var my_id = network_client.get_player_id()
+	for p in players:
+		if p.get("id", "") == my_id:
+			player_gold = p.get("gold", 0)
+			player_lives = p.get("lives", 0)
+			player_score = p.get("score", 0)
+			break
 	
 	_update_hud()
 	_render_game()

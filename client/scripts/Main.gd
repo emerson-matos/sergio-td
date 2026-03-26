@@ -13,6 +13,7 @@ var game_canvas: Node2D
 @onready var wave_label: Label = $UI/HUD/VBoxContainer/WaveLabel
 @onready var score_label: Label = $UI/HUD/VBoxContainer/ScoreLabel
 @onready var start_wave_button: Button = $UI/HUD/StartWaveButton
+@onready var player_id_label: Label = $UI/PlayerIDLabel
 @onready var tower_buttons_container: HBoxContainer = $UI/TowerPanel/VBoxContainer/ButtonsContainer
 
 var waypoints: Array = []
@@ -97,7 +98,8 @@ func _on_game_data_received(data: Dictionary) -> void:
 	var tower_types = data.get("towerTypes", {})
 	
 	queue_redraw()
-	
+
+	player_id_label.text = network_client.get_player_id()
 	status_label.text = "Clique em PRONTO para iniciar!"
 	start_wave_button.text = "PRONTO"
 	start_wave_button.disabled = false

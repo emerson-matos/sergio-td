@@ -28,6 +28,16 @@ offset_right = 600.0
 offset_bottom = 74.0
 text = "Conectando ao servidor..."
 
+[node name="PlayerIDLabel" type="Label" parent="UI"]
+anchors_preset = 1
+anchor_right = 1.0
+offset_left = -300.0
+offset_top = 24.0
+offset_right = -24.0
+offset_bottom = 74.0
+horizontal_alignment = 2
+text = ""
+
 [node name="HUD" type="PanelContainer" parent="UI" unique_id=899219090]
 anchors_preset = 2
 anchor_top = 1.0

@@ -35,7 +35,7 @@
           name = "sergio-td-client";
           runtimeInputs = [ pkgs.godot_4 ];
           text = ''
-            exec godot4 --path ${self}/client
+            exec godot4 --path ${self}/client -- "$@"
           '';
         };
         runDev = pkgs.writeShellApplication {

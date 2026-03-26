@@ -36,7 +36,7 @@ func _process(_delta: float) -> void:
 		_is_connecting = false
 		_connected = true
 		emit_signal("connected")
-		_player_id = "p_%s" % OS.get_unique_id().replace("-", "_").substr(0, 8)
+		_player_id = _get_player_id_from_args()
 		_send_hello()
 	elif _is_connecting and state == WebSocketPeer.STATE_CLOSED:
 		_is_connecting = false
@@ -142,6 +142,12 @@ func send_sell_tower(tower_id: String, command_id: String = "") -> void:
 
 func send_get_game_data() -> void:
 	_send_message("GET_GAME_DATA", {})
+
+func _get_player_id_from_args() -> String:
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--player-id="):
+			return arg.substr("--player-id=".length())
+	return "p_%s" % OS.get_unique_id().replace("-", "_").substr(0, 8)
 
 func get_player_id() -> String:
 	return _player_id
